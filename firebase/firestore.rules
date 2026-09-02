@@ -1,0 +1,55 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Users: read own profile, write only on create (nickname, avatarBase)
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && request.resource.data.keys().hasAll(['nickname', 'avatarBase', 'createdAt'])
+        && !('email' in request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // Campaigns: read-only for clients
+    match /campaigns/{campaignId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+
+      // Players: read all in campaign, write only via Cloud Functions
+      match /players/{playerId} {
+        allow read: if isAuthenticated();
+        allow write: if false;
+
+        match /checkins/{checkinId} {
+          allow read: if isAuthenticated();
+          allow write: if false;
+        }
+      }
+
+      match /feed/{eventId} {
+        allow read: if isAuthenticated();
+        allow write: if false;
+      }
+
+      match /supportRequests/{requestId} {
+        allow read: if isAuthenticated();
+        allow write: if false;
+
+        match /supporters/{supporterId} {
+          allow read: if isAuthenticated();
+          allow write: if false;
+        }
+      }
+    }
+  }
+}
