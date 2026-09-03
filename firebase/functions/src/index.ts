@@ -390,6 +390,11 @@ export const strengthenWarrior = onCall(async (request) => {
     const supportRequest = requestSnap.data()!
     if (supportRequest.playerId === uid) throw new HttpsError('failed-precondition', 'Não pode fortalecer a si mesmo')
 
+    const createdAt = supportRequest.createdAt as Timestamp | undefined
+    if (!createdAt || Date.now() - createdAt.toMillis() >= SUPPORT_COOLDOWN_MS) {
+      throw new HttpsError('failed-precondition', 'Pedido expirado')
+    }
+
     const supporterSnap = await tx.get(supporterRef)
     if (supporterSnap.exists) throw new HttpsError('already-exists', 'Já fortaleceu este pedido')
 

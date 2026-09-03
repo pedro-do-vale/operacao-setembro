@@ -297,6 +297,9 @@ export const demoStore = {
     const request = supportRequests.find((r) => r.id === requestId)
     if (!request) throw new Error('Pedido não encontrado')
     if (request.playerId === userId) throw new Error('Não pode fortalecer a si mesmo')
+    if (Date.now() - request.createdAt.getTime() >= 6 * 3600000) {
+      throw new Error('Pedido expirado')
+    }
     const existing = (supporters[requestId] ?? []).find((s) => s.userId === userId)
     if (existing) throw new Error('Já fortaleceu este pedido')
 

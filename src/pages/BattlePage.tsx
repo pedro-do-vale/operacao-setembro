@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { CircleCheck, Clock3, LoaderCircle, Radio, ShieldCheck, Skull } from 'lucide-react'
 import { useCampaign } from '../contexts/CampaignContext'
 import { useAuth } from '../contexts/AuthContext'
 import { AvatarRenderer } from '../components/AvatarRenderer'
 import { ProgressBar, RankBadge } from '../components/ProgressBar'
 import { Modal } from '../components/Modal'
 import { performCheckIn, declareFall, joinCampaign } from '../services/campaignService'
-import { createSupportRequest, getSupportCooldownRemaining } from '../services/supportService'
+import { createSupportRequest, getSupportCooldownRemaining, isSupportAlertVisible, subscribeToSupportRequests } from '../services/supportService'
 import { getCampaignDay, formatCooldown } from '../utils/dates'
 import { getCheckInAvailability } from '../utils/checkIn'
 import { GAME_CONFIG } from '../config/gameConfig'
@@ -18,7 +19,6 @@ import {
 } from '../utils/campaignJoin'
 import { getRankById, getRankForDays } from '../utils/ranks'
 import { SupportRequestCard } from '../components/SupportRequestCard'
-import { subscribeToSupportRequests } from '../services/supportService'
 import { useEffect } from 'react'
 import type { SupportRequest } from '../types'
 
@@ -37,6 +37,7 @@ export function BattlePage() {
   const [error, setError] = useState('')
   const [joining, setJoining] = useState(false)
   const [personalStartDate, setPersonalStartDate] = useState('')
+  const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
     if (!campaign) return
@@ -56,6 +57,7 @@ export function BattlePage() {
   useEffect(() => {
     const updateCooldown = () => {
       setCooldown(getSupportCooldownRemaining(player?.lastSupportRequestAt))
+      setNow(Date.now())
     }
     const interval = setInterval(updateCooldown, 60000)
     updateCooldown()
@@ -216,7 +218,9 @@ export function BattlePage() {
     personalStartDate: player.personalStartDate,
     lastConfirmedDate: player.lastConfirmedDate,
   })
-  const otherRequests = supportRequests.filter((r) => r.playerId !== player.id)
+  const otherRequests = supportRequests.filter(
+    (r) => r.playerId !== player.id && isSupportAlertVisible(r.createdAt, new Date(now))
+  )
 
   if (deathResult) {
     const deathRank = getRankById(deathResult.rankAtDeath ?? deathResult.currentRank)
@@ -268,25 +272,47 @@ export function BattlePage() {
       {player.status === 'alive' && (
         <div className="battle-actions">
           <button
-            className="btn btn--primary btn--full btn--checkin"
+            className="btn btn--full battle-action battle-action--checkin"
             onClick={handleCheckIn}
             disabled={checkInLoading || !checkInState.canCheckIn}
           >
-            {checkInLoading
-              ? 'REGISTRANDO...'
-              : checkInState.reason === 'already-confirmed'
-                ? '✅ ONTEM CONFIRMADO'
-                : checkInState.reason === 'too-early'
-                  ? '⏳ LIBERA À MEIA-NOITE'
-                  : '✅ SOBREVIVI ONTEM'}
+            <span className="battle-action__icon" aria-hidden="true">
+              {checkInLoading ? (
+                <LoaderCircle className="battle-action__spinner" />
+              ) : checkInState.reason === 'already-confirmed' ? (
+                <CircleCheck />
+              ) : checkInState.reason === 'too-early' ? (
+                <Clock3 />
+              ) : (
+                <ShieldCheck />
+              )}
+            </span>
+            <span className="battle-action__copy">
+              <span className="battle-action__label">
+                {checkInLoading
+                  ? 'REGISTRANDO...'
+                  : checkInState.reason === 'already-confirmed'
+                    ? 'ONTEM CONFIRMADO'
+                    : checkInState.reason === 'too-early'
+                      ? 'LIBERA À MEIA-NOITE'
+                      : 'SOBREVIVI ONTEM'}
+              </span>
+              <span className="battle-action__hint">
+                {checkInState.canCheckIn ? 'Confirmar mais um dia de campanha' : 'Check-in diário indisponível'}
+              </span>
+            </span>
           </button>
 
           <button
-            className="btn btn--support btn--full"
+            className="btn btn--full battle-action battle-action--support"
             onClick={() => setSupportModalOpen(true)}
             disabled={cooldown > 0}
           >
-            🚨 PEDIR REFORÇO
+            <span className="battle-action__icon" aria-hidden="true"><Radio /></span>
+            <span className="battle-action__copy">
+              <span className="battle-action__label">PEDIR REFORÇO</span>
+              <span className="battle-action__hint">Acionar sua rede de apoio</span>
+            </span>
           </button>
           {cooldown > 0 && (
             <p className="cooldown-text">
@@ -295,10 +321,14 @@ export function BattlePage() {
           )}
 
           <button
-            className="btn btn--danger btn--full"
+            className="btn btn--full battle-action battle-action--fallen"
             onClick={() => setFallModalOpen(true)}
           >
-            💀 CAÍ EM COMBATE
+            <span className="battle-action__icon" aria-hidden="true"><Skull /></span>
+            <span className="battle-action__copy">
+              <span className="battle-action__label">CAÍ EM COMBATE</span>
+              <span className="battle-action__hint">Encerrar minha participação</span>
+            </span>
           </button>
         </div>
       )}

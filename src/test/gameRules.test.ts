@@ -9,6 +9,7 @@ import {
 } from '../utils/ranks'
 import { RANKS } from '../config/ranks'
 import { getPortraitFilenameForBase } from '../config/avatarArt'
+import { isSupportAlertVisible } from '../services/supportService'
 
 describe('Rank calculation', () => {
   it('returns Soldado for 0-2 days', () => {
@@ -248,6 +249,18 @@ describe('Support rules', () => {
   it('cooldown is 6 hours', () => {
     const cooldownMs = 6 * 3600000
     expect(cooldownMs).toBe(21600000)
+  })
+
+  it('battle alerts stay visible before 6 hours', () => {
+    const now = new Date('2026-09-03T12:00:00.000Z')
+    const createdAt = new Date(now.getTime() - (6 * 3600000 - 60_000))
+    expect(isSupportAlertVisible(createdAt, now)).toBe(true)
+  })
+
+  it('battle alerts expire at 6 hours', () => {
+    const now = new Date('2026-09-03T12:00:00.000Z')
+    const createdAt = new Date(now.getTime() - 6 * 3600000)
+    expect(isSupportAlertVisible(createdAt, now)).toBe(false)
   })
 })
 

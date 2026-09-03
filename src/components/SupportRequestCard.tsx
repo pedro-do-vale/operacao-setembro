@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Modal } from './Modal'
-import { strengthenWarrior, subscribeToSupporters } from '../services/supportService'
+import { strengthenWarrior, subscribeToSupporters, isSupportAlertVisible } from '../services/supportService'
 import { useCampaign } from '../contexts/CampaignContext'
 import { useEffect } from 'react'
 import type { SupportRequest, Supporter } from '../types'
@@ -18,12 +18,24 @@ export function SupportRequestCard({ request }: SupportRequestCardProps) {
   const [supporters, setSupporters] = useState<Supporter[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [canStrengthen, setCanStrengthen] = useState(() => isSupportAlertVisible(request.createdAt))
 
   useEffect(() => {
     if (!campaign) return
     const unsub = subscribeToSupporters(campaign.id, request.id, setSupporters)
     return unsub
   }, [campaign, request.id])
+
+  useEffect(() => {
+    const update = () => setCanStrengthen(isSupportAlertVisible(request.createdAt))
+    update()
+    const interval = setInterval(update, 60_000)
+    return () => clearInterval(interval)
+  }, [request.createdAt])
+
+  useEffect(() => {
+    if (!canStrengthen) setModalOpen(false)
+  }, [canStrengthen])
 
   const rank = getRankById(request.rank)
   const alreadySupported = supporters.some((s) => s.userId === player?.id)
@@ -56,7 +68,7 @@ export function SupportRequestCard({ request }: SupportRequestCardProps) {
         </p>
         <p className="support-card__count">🔥 {request.supporterCount ?? supporters.length} guerreiros enviaram força</p>
 
-        {!isOwnRequest && !alreadySupported && player && (
+        {!isOwnRequest && !alreadySupported && player && canStrengthen && (
           <button className="btn btn--support btn--full" onClick={() => setModalOpen(true)}>
             🔥 FORTALECER O GUERREIRO
           </button>

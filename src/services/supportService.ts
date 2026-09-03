@@ -6,9 +6,15 @@ import {
   orderBy,
 } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
+import { GAME_CONFIG } from '../config/gameConfig'
 import { db, functions, isDemoMode } from '../lib/firebase'
 import type { SupportRequest, Supporter } from '../types'
 import { demoStore } from './demo/demoStore'
+
+export function isSupportAlertVisible(createdAt: Date, now = new Date()): boolean {
+  const ttlMs = GAME_CONFIG.SUPPORT_REQUEST_COOLDOWN_HOURS * 60 * 60 * 1000
+  return now.getTime() - createdAt.getTime() < ttlMs
+}
 
 function parseSupportRequest(id: string, data: Record<string, unknown>): SupportRequest {
   return {
