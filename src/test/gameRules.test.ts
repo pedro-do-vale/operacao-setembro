@@ -102,16 +102,133 @@ describe('Fallen rules', () => {
 })
 
 describe('Check-in rules', () => {
-  it('prevents duplicate check-in on same day', () => {
-    const today = new Date().toISOString().split('T')[0]
-    const lastCheckIn = new Date()
-    const lastDate = lastCheckIn.toISOString().split('T')[0]
-    expect(lastDate === today).toBe(true)
+  const sep3NoonBRT = new Date('2026-09-03T15:00:00.000Z')
+  const sep4NoonBRT = new Date('2026-09-04T15:00:00.000Z')
+
+  it('confirms yesterday, not today', async () => {
+    const { getYesterdayKey, formatDateKey } = await import('../utils/dates')
+    expect(formatDateKey(sep3NoonBRT)).toBe('2026-09-03')
+    expect(getYesterdayKey(sep3NoonBRT)).toBe('2026-09-02')
+  })
+
+  it('blocks check-in on the first personal day', async () => {
+    const { getCheckInAvailability } = await import('../utils/checkIn')
+    const state = getCheckInAvailability({
+      personalStartDate: '2026-09-03',
+      lastConfirmedDate: null,
+      now: sep3NoonBRT,
+    })
+    expect(state.canCheckIn).toBe(false)
+    expect(state.reason).toBe('too-early')
+  })
+
+  it('blocks when yesterday is already confirmed', async () => {
+    const { getCheckInAvailability } = await import('../utils/checkIn')
+    const state = getCheckInAvailability({
+      personalStartDate: '2026-09-01',
+      lastConfirmedDate: '2026-09-02',
+      now: sep3NoonBRT,
+    })
+    expect(state.canCheckIn).toBe(false)
+    expect(state.reason).toBe('already-confirmed')
+  })
+
+  it('allows confirming yesterday when it is still open', async () => {
+    const { getCheckInAvailability, confirmYesterdayCheckIn } = await import('../utils/checkIn')
+    const state = getCheckInAvailability({
+      personalStartDate: '2026-09-02',
+      lastConfirmedDate: null,
+      now: sep3NoonBRT,
+    })
+    expect(state.canCheckIn).toBe(true)
+    expect(confirmYesterdayCheckIn({
+      personalStartDate: '2026-09-02',
+      lastConfirmedDate: null,
+      now: sep3NoonBRT,
+    }).yesterday).toBe('2026-09-02')
+  })
+
+  it('does not require check-in on the same day as join', async () => {
+    const { getJoinLastConfirmedDate, getCheckInAvailability } = await import('../utils/checkIn')
+    const { calculateInitialDaysSurvived } = await import('../utils/campaignJoin')
+    const campaignStart = new Date('2026-09-01T00:00:00.000Z')
+    const lastConfirmed = getJoinLastConfirmedDate('2026-09-01', sep3NoonBRT)
+    expect(lastConfirmed).toBe('2026-09-02')
+    expect(calculateInitialDaysSurvived(campaignStart, '2026-09-01', sep3NoonBRT)).toBe(2)
+    const state = getCheckInAvailability({
+      personalStartDate: '2026-09-01',
+      lastConfirmedDate: lastConfirmed,
+      now: sep3NoonBRT,
+    })
+    expect(state.canCheckIn).toBe(false)
+    const nextDay = getCheckInAvailability({
+      personalStartDate: '2026-09-01',
+      lastConfirmedDate: lastConfirmed,
+      now: sep4NoonBRT,
+    })
+    expect(nextDay.canCheckIn).toBe(true)
+    expect(nextDay.yesterday).toBe('2026-09-03')
   })
 
   it('fallen cannot check in', () => {
     const status: string = 'fallen'
     expect(status === 'alive').toBe(false)
+  })
+})
+
+describe('Check-in remap', () => {
+  const today = '2026-09-03'
+  const yesterday = '2026-09-02'
+
+  it('moves a today check-in to yesterday', async () => {
+    const { remapTodayCheckinIds, recomputeConfirmedState } = await import('../utils/checkIn')
+    const remapped = remapTodayCheckinIds(['2026-09-03'], today, yesterday)
+    expect(remapped.action).toBe('moved')
+    expect(remapped.ids).toEqual(['2026-09-02'])
+    const state = recomputeConfirmedState({
+      personalStartDate: '2026-09-01',
+      joinedAtDateKey: '2026-09-02',
+      checkinIds: remapped.ids,
+      yesterday,
+    })
+    expect(state.daysSurvived).toBe(2)
+    expect(state.lastConfirmedDate).toBe('2026-09-02')
+  })
+
+  it('deletes a duplicate today check-in when yesterday already exists', async () => {
+    const { remapTodayCheckinIds, recomputeConfirmedState } = await import('../utils/checkIn')
+    const remapped = remapTodayCheckinIds(['2026-09-02', '2026-09-03'], today, yesterday)
+    expect(remapped.action).toBe('deleted-duplicate')
+    expect(remapped.ids).toEqual(['2026-09-02'])
+    const state = recomputeConfirmedState({
+      personalStartDate: '2026-09-02',
+      joinedAtDateKey: '2026-09-02',
+      checkinIds: remapped.ids,
+      yesterday,
+    })
+    expect(state.daysSurvived).toBe(1)
+    expect(state.lastConfirmedDate).toBe('2026-09-02')
+  })
+
+  it('keeps a missed day as a hole', async () => {
+    const { remapTodayCheckinIds, recomputeConfirmedState, getCheckInAvailability } = await import('../utils/checkIn')
+    const remapped = remapTodayCheckinIds(['2026-09-01'], today, yesterday)
+    expect(remapped.action).toBe('none')
+    const state = recomputeConfirmedState({
+      personalStartDate: '2026-09-01',
+      joinedAtDateKey: '2026-09-02',
+      checkinIds: remapped.ids,
+      yesterday,
+    })
+    expect(state.daysSurvived).toBe(1)
+    expect(state.confirmedDates).toEqual(['2026-09-01'])
+    const availability = getCheckInAvailability({
+      personalStartDate: '2026-09-01',
+      lastConfirmedDate: state.lastConfirmedDate,
+      now: new Date('2026-09-03T15:00:00.000Z'),
+    })
+    expect(availability.canCheckIn).toBe(true)
+    expect(availability.yesterday).toBe('2026-09-02')
   })
 })
 
@@ -160,16 +277,19 @@ describe('Death snapshot', () => {
 })
 
 describe('Campaign join', () => {
-  const campaignStart = new Date(2026, 8, 1)
+  const campaignStart = new Date('2026-09-01T00:00:00.000Z')
+  const sep1 = new Date('2026-09-01T15:00:00.000Z')
+  const sep2 = new Date('2026-09-02T15:00:00.000Z')
+  const sep3 = new Date('2026-09-03T15:00:00.000Z')
+  const sep4 = new Date('2026-09-04T15:00:00.000Z')
 
   it('treats a UTC campaign timestamp as September 1st', async () => {
     const { getCampaignDay } = await import('../utils/dates')
     const { getSelectableStartDateKeys } = await import('../utils/campaignJoin')
     const utcStart = new Date('2026-09-01T00:00:00.000Z')
-    const septemberSecond = new Date(2026, 8, 2, 10)
 
-    expect(getCampaignDay(utcStart, septemberSecond)).toBe(2)
-    expect(getSelectableStartDateKeys(utcStart, '2026-09-04', septemberSecond)).toEqual([
+    expect(getCampaignDay(utcStart, sep2)).toBe(2)
+    expect(getSelectableStartDateKeys(utcStart, '2026-09-04', sep2)).toEqual([
       '2026-09-01',
       '2026-09-02',
     ])
@@ -177,17 +297,24 @@ describe('Campaign join', () => {
 
   it('calculates retroactive days without counting today', async () => {
     const { calculateInitialDaysSurvived } = await import('../utils/campaignJoin')
-    expect(calculateInitialDaysSurvived(campaignStart, '2026-09-01', new Date(2026, 8, 1))).toBe(0)
-    expect(calculateInitialDaysSurvived(campaignStart, '2026-09-01', new Date(2026, 8, 3))).toBe(2)
-    expect(calculateInitialDaysSurvived(campaignStart, '2026-09-01', new Date(2026, 8, 4))).toBe(3)
-    expect(calculateInitialDaysSurvived(campaignStart, '2026-09-03', new Date(2026, 8, 4))).toBe(1)
+    expect(calculateInitialDaysSurvived(campaignStart, '2026-09-01', sep1)).toBe(0)
+    expect(calculateInitialDaysSurvived(campaignStart, '2026-09-01', sep3)).toBe(2)
+    expect(calculateInitialDaysSurvived(campaignStart, '2026-09-01', sep4)).toBe(3)
+    expect(calculateInitialDaysSurvived(campaignStart, '2026-09-03', sep4)).toBe(1)
   })
 
-  it('joining on Sep 3 with start Sep 1 gives Cabo after first check-in', async () => {
+  it('joining on Sep 3 with start Sep 1 waits until Sep 4 to reach Cabo', async () => {
     const { calculateInitialDaysSurvived } = await import('../utils/campaignJoin')
-    const initial = calculateInitialDaysSurvived(campaignStart, '2026-09-01', new Date(2026, 8, 3))
+    const { getJoinLastConfirmedDate, getCheckInAvailability } = await import('../utils/checkIn')
+    const initial = calculateInitialDaysSurvived(campaignStart, '2026-09-01', sep3)
     expect(initial).toBe(2)
     expect(getRankForDays(initial).id).toBe('soldado')
+    expect(getJoinLastConfirmedDate('2026-09-01', sep3)).toBe('2026-09-02')
+    expect(getCheckInAvailability({
+      personalStartDate: '2026-09-01',
+      lastConfirmedDate: '2026-09-02',
+      now: sep3,
+    }).canCheckIn).toBe(false)
     expect(getRankForDays(initial + 1).id).toBe('cabo')
   })
 

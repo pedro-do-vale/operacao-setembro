@@ -12,6 +12,8 @@ import {
   isRegistrationOpen,
   isValidPersonalStartDate,
 } from '../../utils/campaignJoin'
+import { getCheckInAvailability, getJoinLastConfirmedDate } from '../../utils/checkIn'
+import { getYesterdayKey } from '../../utils/dates'
 
 const CAMPAIGN_ID = 'operacao-setembro-2026'
 
@@ -37,6 +39,8 @@ function makePlayer(
     daysSurvived,
     currentRank: rankId,
     lastCheckIn: status === 'alive' || status === 'monk' ? new Date() : null,
+    lastConfirmedDate:
+      opts.lastConfirmedDate ?? (status === 'alive' || status === 'monk' ? getYesterdayKey() : null),
     fallenAt: status === 'fallen' ? new Date('2026-09-15') : null,
     fallenDay: status === 'fallen' ? daysSurvived : null,
     rankAtDeath: status === 'fallen' ? rankId : null,
@@ -173,6 +177,7 @@ export const demoStore = {
       currentRank: rankId,
       personalStartDate,
       lastCheckIn: null,
+      lastConfirmedDate: getJoinLastConfirmedDate(personalStartDate),
     })
     players.push(player)
     currentPlayerId = userId
@@ -192,13 +197,24 @@ export const demoStore = {
   performCheckIn: (playerId: string) => {
     const player = players.find((p) => p.id === playerId)
     if (!player || player.status !== 'alive') throw new Error('Check-in não permitido')
-    const today = new Date().toISOString().split('T')[0]
-    const lastDate = player.lastCheckIn?.toISOString().split('T')[0]
-    if (lastDate === today) throw new Error('Check-in já realizado hoje')
+    const { yesterday } = (() => {
+      const availability = getCheckInAvailability({
+        personalStartDate: player.personalStartDate,
+        lastConfirmedDate: player.lastConfirmedDate,
+      })
+      if (availability.reason === 'too-early') {
+        throw new Error('Ainda não há um dia completo para confirmar')
+      }
+      if (availability.reason === 'already-confirmed') {
+        throw new Error('Check-in de ontem já realizado')
+      }
+      return availability
+    })()
 
     const oldDays = player.daysSurvived
     player.daysSurvived += 1
     player.lastCheckIn = new Date()
+    player.lastConfirmedDate = yesterday
     const newRank = getRankIdForDays(player.daysSurvived, player.status)
     const promoted = newRank !== player.currentRank
     player.currentRank = newRank

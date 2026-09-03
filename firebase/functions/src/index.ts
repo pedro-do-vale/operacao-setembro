@@ -43,6 +43,8 @@ const RANK_AVATAR_CONFIG: Record<string, Record<string, unknown>> = {
 
 const SUPPORT_COOLDOWN_MS = 6 * 60 * 60 * 1000
 const DEFAULT_REGISTRATION_DEADLINE = '2026-09-04'
+const DEFAULT_CAMPAIGN_ID = 'operacao-setembro-2026'
+const REPAIR_ALLOWLIST = ['pedroduartedovale@gmail.com']
 
 function getRankForDays(days: number) {
   return RANKS.find((r) => days >= r.minDays && days <= r.maxDays) ?? RANKS[0]
@@ -67,6 +69,43 @@ function getCampaignStartDateKey(startDate: Date): string {
 function dateKeyToDayNumber(dateKey: string): number {
   const [year, month, day] = dateKey.split('-').map(Number)
   return Math.floor(Date.UTC(year, month - 1, day) / (1000 * 60 * 60 * 24))
+}
+
+function shiftDateKey(dateKey: string, days: number): string {
+  const shifted = new Date((dateKeyToDayNumber(dateKey) + days) * 24 * 60 * 60 * 1000)
+  const y = shifted.getUTCFullYear()
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(shifted.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function dateKeysInclusive(fromKey: string, toKey: string): string[] {
+  if (fromKey > toKey) return []
+  const keys: string[] = []
+  let current = fromKey
+  while (current <= toKey) {
+    keys.push(current)
+    current = shiftDateKey(current, 1)
+  }
+  return keys
+}
+
+function recomputeConfirmedState(params: {
+  personalStartDate: string
+  joinedAtDateKey: string
+  checkinIds: string[]
+  yesterday: string
+}) {
+  const dayBeforeJoin = shiftDateKey(params.joinedAtDateKey, -1)
+  const autoGranted = dateKeysInclusive(params.personalStartDate, dayBeforeJoin)
+  const checkins = params.checkinIds.filter(
+    (id) => id <= params.yesterday && id >= params.personalStartDate
+  )
+  const confirmedDates = [...new Set([...autoGranted, ...checkins])].sort()
+  return {
+    daysSurvived: confirmedDates.length,
+    lastConfirmedDate: confirmedDates[confirmedDates.length - 1] ?? null,
+  }
 }
 
 function getCampaignDay(startDate: Date, referenceDate: Date): number {
@@ -151,6 +190,8 @@ export const joinCampaign = onCall(async (request) => {
 
   const daysSurvived = calculateInitialDaysSurvived(campaignStart, personalStartDate, now)
   const rank = getRankForDays(daysSurvived)
+  const yesterday = shiftDateKey(formatDateKey(now), -1)
+  const lastConfirmedDate = yesterday >= personalStartDate ? yesterday : null
 
   const playerData = {
     userId: uid,
@@ -162,6 +203,7 @@ export const joinCampaign = onCall(async (request) => {
     personalStartDate,
     daysSurvived,
     currentRank: rank.id,
+    lastConfirmedDate,
     lastCheckIn: null,
     fallenAt: null,
     fallenDay: null,
@@ -183,8 +225,8 @@ export const performCheckIn = onCall(async (request) => {
   const { campaignId } = request.data
   const uid = request.auth.uid
   const playerRef = db.collection('campaigns').doc(campaignId).collection('players').doc(uid)
-  const today = formatDateKey(new Date())
-  const checkinRef = playerRef.collection('checkins').doc(today)
+  const yesterday = shiftDateKey(formatDateKey(new Date()), -1)
+  const checkinRef = playerRef.collection('checkins').doc(yesterday)
 
   const result = await db.runTransaction(async (tx) => {
     const playerSnap = await tx.get(playerRef)
@@ -193,8 +235,16 @@ export const performCheckIn = onCall(async (request) => {
     const player = playerSnap.data()!
     if (player.status !== 'alive') throw new HttpsError('failed-precondition', 'Jogador não está vivo')
 
+    const personalStart = player.personalStartDate as string | undefined
+    if (!personalStart || yesterday < personalStart) {
+      throw new HttpsError('failed-precondition', 'Ainda não há um dia completo para confirmar')
+    }
+    if ((player.lastConfirmedDate as string | null | undefined) && (player.lastConfirmedDate as string) >= yesterday) {
+      throw new HttpsError('already-exists', 'Check-in de ontem já realizado')
+    }
+
     const checkinSnap = await tx.get(checkinRef)
-    if (checkinSnap.exists) throw new HttpsError('already-exists', 'Check-in já realizado hoje')
+    if (checkinSnap.exists) throw new HttpsError('already-exists', 'Check-in de ontem já realizado')
 
     const oldDays = player.daysSurvived as number
     const newDays = oldDays + 1
@@ -211,6 +261,7 @@ export const performCheckIn = onCall(async (request) => {
       daysSurvived: newDays,
       currentRank: newRank.id,
       avatarConfig,
+      lastConfirmedDate: yesterday,
       lastCheckIn: FieldValue.serverTimestamp(),
     }
 
@@ -220,7 +271,7 @@ export const performCheckIn = onCall(async (request) => {
       updates.status = 'monk'
     }
 
-    tx.set(checkinRef, { date: today, createdAt: FieldValue.serverTimestamp() })
+    tx.set(checkinRef, { date: yesterday, createdAt: FieldValue.serverTimestamp() })
     tx.update(playerRef, updates)
 
     return { player: { ...player, ...updates, daysSurvived: newDays, currentRank: newRank.id, status: newStatus }, promoted, newRank: promoted ? newRank.id : null, nickname: player.nickname, newStatus }
@@ -378,7 +429,109 @@ export const setEpitaph = onCall(async (request) => {
   return { success: true }
 })
 
-const DEFAULT_CAMPAIGN_ID = 'operacao-setembro-2026'
+export const repairCheckInState = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Não autenticado')
+  const email = request.auth.token.email as string | undefined
+  if (!email || !REPAIR_ALLOWLIST.includes(email)) {
+    throw new HttpsError('permission-denied', 'Não autorizado')
+  }
+
+  const dryRun = Boolean(request.data?.dryRun)
+  const campaignId = (request.data?.campaignId as string | undefined) ?? DEFAULT_CAMPAIGN_ID
+  const now = new Date()
+  const today = formatDateKey(now)
+  const yesterday = shiftDateKey(today, -1)
+
+  const playersSnap = await db.collection('campaigns').doc(campaignId).collection('players').get()
+  const results: Record<string, unknown>[] = []
+
+  for (const playerDoc of playersSnap.docs) {
+    const player = playerDoc.data()
+    const nickname = player.nickname as string
+    if (player.status !== 'alive') {
+      results.push({ nickname, skipped: true, reason: player.status })
+      continue
+    }
+
+    const personalStartDate = player.personalStartDate as string | undefined
+    if (!personalStartDate) {
+      results.push({ nickname, skipped: true, reason: 'missing-personal-start' })
+      continue
+    }
+
+    const playerRef = playerDoc.ref
+    const checkinsSnap = await playerRef.collection('checkins').get()
+    const checkinIds = checkinsSnap.docs.map((d) => d.id)
+    const todaySnap = checkinsSnap.docs.find((d) => d.id === today)
+    const yesterdaySnap = checkinsSnap.docs.find((d) => d.id === yesterday)
+
+    let action: 'none' | 'moved' | 'deleted-duplicate' = 'none'
+    let nextIds = [...checkinIds]
+
+    if (todaySnap && yesterdaySnap) {
+      action = 'deleted-duplicate'
+      nextIds = checkinIds.filter((id) => id !== today)
+    } else if (todaySnap && !yesterdaySnap) {
+      action = 'moved'
+      nextIds = checkinIds.map((id) => (id === today ? yesterday : id))
+    }
+
+    const joinedAt = (player.joinedAt as Timestamp).toDate()
+    const state = recomputeConfirmedState({
+      personalStartDate,
+      joinedAtDateKey: formatDateKey(joinedAt),
+      checkinIds: nextIds,
+      yesterday,
+    })
+    const rank = getRankForDays(state.daysSurvived)
+    const avatarConfig = {
+      base: player.avatarBase,
+      ...RANK_AVATAR_CONFIG[rank.id],
+    }
+
+    const lastConfirmedCheckin = checkinsSnap.docs.find((d) => d.id === state.lastConfirmedDate)
+      ?? (action === 'moved' && state.lastConfirmedDate === yesterday ? todaySnap : undefined)
+    const lastCheckIn = lastConfirmedCheckin?.get('createdAt') ?? player.lastCheckIn ?? null
+
+    const before = {
+      daysSurvived: player.daysSurvived,
+      lastConfirmedDate: player.lastConfirmedDate ?? null,
+      checkins: [...checkinIds].sort(),
+    }
+    const after = {
+      daysSurvived: state.daysSurvived,
+      lastConfirmedDate: state.lastConfirmedDate,
+      checkins: [...nextIds].sort(),
+      currentRank: rank.id,
+      action,
+    }
+
+    if (!dryRun) {
+      const batch = db.batch()
+      if (action === 'deleted-duplicate' && todaySnap) {
+        batch.delete(todaySnap.ref)
+      } else if (action === 'moved' && todaySnap) {
+        batch.set(playerRef.collection('checkins').doc(yesterday), {
+          date: yesterday,
+          createdAt: todaySnap.get('createdAt') ?? FieldValue.serverTimestamp(),
+        })
+        batch.delete(todaySnap.ref)
+      }
+      batch.update(playerRef, {
+        daysSurvived: state.daysSurvived,
+        lastConfirmedDate: state.lastConfirmedDate,
+        currentRank: rank.id,
+        avatarConfig,
+        lastCheckIn,
+      })
+      await batch.commit()
+    }
+
+    results.push({ nickname, before, after })
+  }
+
+  return { dryRun, today, yesterday, campaignId, results }
+})
 
 export const ensureDefaultCampaign = onCall(async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Não autenticado')

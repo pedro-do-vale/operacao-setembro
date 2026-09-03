@@ -66,6 +66,7 @@ function parsePlayer(id: string, data: Record<string, unknown>): CampaignPlayer 
     lastCheckIn: data.lastCheckIn
       ? (data.lastCheckIn as { toDate: () => Date }).toDate?.() ?? new Date(data.lastCheckIn as string)
       : null,
+    lastConfirmedDate: (data.lastConfirmedDate as string) ?? null,
     lastSupportRequestAt: data.lastSupportRequestAt
       ? (data.lastSupportRequestAt as { toDate: () => Date }).toDate?.() ??
         new Date(data.lastSupportRequestAt as string)

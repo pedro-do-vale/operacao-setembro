@@ -1,5 +1,6 @@
 import { GAME_CONFIG } from '../config/gameConfig'
 import {
+  dateKeysInclusive,
   formatDateKey,
   getCampaignDay,
   getCampaignStartDateKey,
@@ -14,7 +15,7 @@ export function isRegistrationOpen(
   return now.getTime() <= endOfDay(deadlineKey).getTime()
 }
 
-/** Dias já sobrevividos antes do dia atual (check-in de hoje ainda é necessário). */
+/** Dias já encerrados até ontem (o dia atual só confirma no dia seguinte). */
 export function calculateInitialDaysSurvived(
   campaignStart: Date,
   personalStartDateKey: string,
@@ -33,24 +34,10 @@ export function getSelectableStartDateKeys(
   deadlineKey: string = GAME_CONFIG.REGISTRATION_DEADLINE,
   referenceDate: Date = new Date()
 ): string[] {
-  const start = parseDateKey(getCampaignStartDateKey(campaignStart))
-  start.setHours(0, 0, 0, 0)
-
-  const lastAllowed = Math.min(
-    endOfDay(deadlineKey).getTime(),
-    new Date(referenceDate).setHours(23, 59, 59, 999)
-  )
-
-  const dates: string[] = []
-  const current = new Date(start)
-  current.setHours(0, 0, 0, 0)
-
-  while (current.getTime() <= lastAllowed) {
-    dates.push(formatDateKey(current))
-    current.setDate(current.getDate() + 1)
-  }
-
-  return dates
+  const startKey = getCampaignStartDateKey(campaignStart)
+  const todayKey = formatDateKey(referenceDate)
+  const lastKey = todayKey < deadlineKey ? todayKey : deadlineKey
+  return dateKeysInclusive(startKey, lastKey)
 }
 
 export function isValidPersonalStartDate(

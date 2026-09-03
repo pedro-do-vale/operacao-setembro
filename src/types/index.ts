@@ -67,6 +67,7 @@ export interface CampaignPlayer {
   daysSurvived: number
   currentRank: string
   lastCheckIn: Date | null
+  lastConfirmedDate: string | null
   lastSupportRequestAt?: Date | null
   fallenAt: Date | null
   fallenDay: number | null

@@ -8,6 +8,7 @@ import { Modal } from '../components/Modal'
 import { performCheckIn, declareFall, joinCampaign } from '../services/campaignService'
 import { createSupportRequest, getSupportCooldownRemaining } from '../services/supportService'
 import { getCampaignDay, formatCooldown } from '../utils/dates'
+import { getCheckInAvailability } from '../utils/checkIn'
 import { GAME_CONFIG } from '../config/gameConfig'
 import {
   isRegistrationOpen,
@@ -183,7 +184,7 @@ export function BattlePage() {
           <div className="join-campaign__preview">
             <p>{selectedDays} {selectedDays === 1 ? 'dia' : 'dias'} de combate retroativos</p>
             <p>Patente inicial: <strong>{previewRank.name}</strong></p>
-            <p className="form-hint">Você ainda precisa fazer o check-in de hoje.</p>
+            <p className="form-hint">O dia de hoje só poderá ser confirmado amanhã.</p>
           </div>
         )}
 
@@ -211,8 +212,10 @@ export function BattlePage() {
   const avatarConfig = player.status === 'fallen' && player.avatarSnapshotAtDeath
     ? player.avatarSnapshotAtDeath
     : player.avatarConfig
-  const today = new Date().toISOString().split('T')[0]
-  const alreadyCheckedIn = player.lastCheckIn?.toISOString().split('T')[0] === today
+  const checkInState = getCheckInAvailability({
+    personalStartDate: player.personalStartDate,
+    lastConfirmedDate: player.lastConfirmedDate,
+  })
   const otherRequests = supportRequests.filter((r) => r.playerId !== player.id)
 
   if (deathResult) {
@@ -267,9 +270,15 @@ export function BattlePage() {
           <button
             className="btn btn--primary btn--full btn--checkin"
             onClick={handleCheckIn}
-            disabled={checkInLoading || alreadyCheckedIn}
+            disabled={checkInLoading || !checkInState.canCheckIn}
           >
-            {alreadyCheckedIn ? '✅ CHECK-IN FEITO HOJE' : checkInLoading ? 'REGISTRANDO...' : '✅ SOBREVIVI HOJE'}
+            {checkInLoading
+              ? 'REGISTRANDO...'
+              : checkInState.reason === 'already-confirmed'
+                ? '✅ ONTEM CONFIRMADO'
+                : checkInState.reason === 'too-early'
+                  ? '⏳ LIBERA À MEIA-NOITE'
+                  : '✅ SOBREVIVI ONTEM'}
           </button>
 
           <button

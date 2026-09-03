@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "firebase": {
+      "command": "C:\\Users\\doval\\AppData\\Roaming\\npm\\firebase.cmd",
+      "args": [
+        "mcp",
+        "--dir",
+        "C:\\Users\\doval\\OneDrive\\Documentos\\GITHUB\\operacao-setembro",
+        "--only",
+        "core,firestore,auth,functions"
+      ]
+    }
+  }
+}
