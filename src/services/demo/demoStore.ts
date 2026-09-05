@@ -84,6 +84,7 @@ const feedEvents: FeedEvent[] = [
   { id: 'f2', type: 'PROMOTION', playerId: 'p2', nickname: 'BRUNÃO', data: { rank: '1º Tenente' }, createdAt: new Date(Date.now() - 3600000) },
   { id: 'f3', type: 'FALLEN', playerId: 'p9', nickname: 'JOÃO', data: { day: 8, rank: '2º Sargento' }, createdAt: new Date(Date.now() - 7200000) },
   { id: 'f4', type: 'SUPPORT_REQUEST', playerId: 'p1', nickname: 'PEDRÃO', data: { requestId: 'sr1' }, createdAt: new Date(Date.now() - 1800000) },
+  { id: 'f7', type: 'SUPPORT_REQUEST', playerId: 'p2', nickname: 'BRUNÃO', data: { requestId: 'sr2' }, createdAt: new Date(Date.now() - 900000) },
   { id: 'f5', type: 'MONK', playerId: 'p6', nickname: 'RAFAEL', data: {}, createdAt: new Date(Date.now() - 86400000) },
   { id: 'f6', type: 'TOP_3', playerId: 'p5', nickname: 'CARLOS', data: { position: 1 }, createdAt: new Date(Date.now() - 172800000) },
 ]
@@ -93,20 +94,35 @@ const supportRequests: SupportRequest[] = [
     id: 'sr1',
     playerId: 'p1',
     nickname: 'PEDRÃO',
-    rank: 'Capitão',
+    rank: 'capitao',
     daysSurvived: 19,
     createdAt: new Date(Date.now() - 1800000),
     status: 'active',
     supporterCount: 3,
+    message: 'To no limite hoje. Preciso aguentar.',
+  },
+  {
+    id: 'sr2',
+    playerId: 'p2',
+    nickname: 'BRUNÃO',
+    rank: '1-tenente',
+    daysSurvived: 17,
+    createdAt: new Date(Date.now() - 900000),
+    status: 'active',
+    supporterCount: 0,
+    message: 'Estou na linha de fogo.',
+    hasImage: true,
+    imagePath: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
   },
 ]
 
 const supporters: Record<string, Supporter[]> = {
   sr1: [
-    { id: 's1', userId: 'p2', nickname: 'BRUNÃO', message: 'Tu não chegou até o dia 17 pra cair agora.', createdAt: new Date() },
+    { id: 's1', userId: 'p2', nickname: 'BRUNÃO', message: 'Tu não chegou até o dia 17 pra cair agora.', createdAt: new Date(), hasImage: true, imagePath: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' },
     { id: 's2', userId: 'p3', nickname: 'PAULO', message: '🫡 RESISTA, SOLDADO.', createdAt: new Date() },
     { id: 's3', userId: 'p4', nickname: 'JUNINHO', message: 'O Capitão está logo ali.', createdAt: new Date() },
   ],
+  sr2: [],
 }
 
 const campaign: Campaign = {
@@ -258,15 +274,22 @@ export const demoStore = {
     return player
   },
 
-  createSupportRequest: (playerId: string) => {
+  createSupportRequest: (
+    playerId: string,
+    options: { id?: string; message?: string; hasImage?: boolean; imagePath?: string } = {},
+  ) => {
     const player = players.find((p) => p.id === playerId)
     if (!player || player.status !== 'alive') throw new Error('Pedido não permitido')
     if (lastSupportRequestAt && Date.now() - lastSupportRequestAt.getTime() < 6 * 3600000) {
       throw new Error('Cooldown ativo')
     }
 
+    const message = (options.message ?? '').trim().slice(0, 120)
+    const hasImage = Boolean(options.hasImage && options.imagePath)
+    if (!message && !hasImage) throw new Error('Mensagem inválida')
+
     const request: SupportRequest = {
-      id: `sr-${Date.now()}`,
+      id: options.id ?? `sr-${Date.now()}`,
       playerId,
       nickname: player.nickname,
       rank: getRankIdForDays(player.daysSurvived, player.status),
@@ -274,6 +297,9 @@ export const demoStore = {
       createdAt: new Date(),
       status: 'active',
       supporterCount: 0,
+      message,
+      hasImage,
+      imagePath: hasImage ? options.imagePath : undefined,
     }
     supportRequests.push(request)
     supporters[request.id] = []
@@ -293,7 +319,13 @@ export const demoStore = {
     return request
   },
 
-  strengthen: (requestId: string, userId: string, nickname: string, message: string) => {
+  strengthen: (
+    requestId: string,
+    userId: string,
+    nickname: string,
+    message: string,
+    image?: { hasImage: boolean; imagePath?: string },
+  ) => {
     const request = supportRequests.find((r) => r.id === requestId)
     if (!request) throw new Error('Pedido não encontrado')
     if (request.playerId === userId) throw new Error('Não pode fortalecer a si mesmo')
@@ -303,12 +335,18 @@ export const demoStore = {
     const existing = (supporters[requestId] ?? []).find((s) => s.userId === userId)
     if (existing) throw new Error('Já fortaleceu este pedido')
 
+    const trimmed = message.trim().slice(0, 120)
+    const hasImage = Boolean(image?.hasImage && image.imagePath)
+    if (!trimmed && !hasImage) throw new Error('Mensagem inválida')
+
     const supporter: Supporter = {
       id: `sup-${Date.now()}`,
       userId,
       nickname,
-      message: message.slice(0, 120),
+      message: trimmed,
       createdAt: new Date(),
+      hasImage,
+      imagePath: hasImage ? image?.imagePath : undefined,
     }
     if (!supporters[requestId]) supporters[requestId] = []
     supporters[requestId].push(supporter)

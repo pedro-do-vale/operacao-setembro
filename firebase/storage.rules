@@ -1,0 +1,26 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isSupportJpeg() {
+      return isAuthenticated()
+        && request.resource.size < 300 * 1024
+        && request.resource.contentType == 'image/jpeg';
+    }
+
+    match /campaigns/{campaignId}/supportRequests/{requestId}/request.jpg {
+      allow read: if isAuthenticated();
+      allow write: if isSupportJpeg();
+    }
+
+    match /campaigns/{campaignId}/supportRequests/{requestId}/supporters/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isSupportJpeg()
+        && fileName == request.auth.uid + '.jpg';
+    }
+  }
+}

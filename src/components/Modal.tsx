@@ -7,15 +7,16 @@ interface ModalProps {
   title?: string
   children: ReactNode
   variant?: 'default' | 'danger' | 'promotion' | 'monk'
+  className?: string
 }
 
-export function Modal({ open, onClose, title, children, variant = 'default' }: ModalProps) {
+export function Modal({ open, onClose, title, children, variant = 'default', className }: ModalProps) {
   if (!open) return null
 
   return (
     <div className="modal-overlay" onClick={onClose} role="presentation">
       <div
-        className={`modal modal--${variant}`}
+        className={['modal', `modal--${variant}`, className].filter(Boolean).join(' ')}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

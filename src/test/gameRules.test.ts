@@ -246,6 +246,15 @@ describe('Support rules', () => {
     expect(playerId === requestPlayerId).toBe(true)
   })
 
+  it('support request and strengthen require text, image, or both', () => {
+    const canSubmit = (message: string, hasImage: boolean) => Boolean(message.trim() || hasImage)
+    expect(canSubmit('', false)).toBe(false)
+    expect(canSubmit('  ', false)).toBe(false)
+    expect(canSubmit('Estou na linha de fogo.', false)).toBe(true)
+    expect(canSubmit('', true)).toBe(true)
+    expect(canSubmit('Manda força.', true)).toBe(true)
+  })
+
   it('cooldown is 6 hours', () => {
     const cooldownMs = 6 * 3600000
     expect(cooldownMs).toBe(21600000)

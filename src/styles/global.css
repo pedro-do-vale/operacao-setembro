@@ -7,6 +7,8 @@
   --color-text-muted: #888894;
   --color-gold: #c9a227;
   --color-gold-light: #e8c547;
+  --color-link: #7eb8ff;
+  --color-link-hover: #b3d4ff;
   --color-red: #8b1a1a;
   --color-red-bright: #c42b2b;
   --color-green: #1a6b3a;
@@ -911,6 +913,15 @@ img {
   margin: 0.25rem 0;
 }
 
+.support-card__plea {
+  margin: 0.6rem 0 0.35rem;
+  font-size: 0.85rem;
+}
+
+.support-card__plea strong {
+  color: var(--color-gold);
+}
+
 .support-card__count {
   font-size: 0.85rem;
   color: #ff8c42;
@@ -930,6 +941,91 @@ img {
 
 .support-message strong {
   color: var(--color-gold);
+}
+
+.support-message__image-btn {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.support-message__image-btn:hover .support-message__image-label,
+.support-message__image-btn:focus-visible .support-message__image-label {
+  color: var(--color-link-hover);
+}
+
+.support-message__image-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-link);
+}
+
+.support-image-attach {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.support-image-attach__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.support-image-attach__preview {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.support-image-attach__preview img {
+  display: block;
+  max-width: 180px;
+  max-height: 120px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+}
+
+.support-image-attach__remove {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.modal--wide {
+  max-width: min(40rem, 100%);
+}
+
+.support-image-viewer img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
 }
 
 .quick-messages {

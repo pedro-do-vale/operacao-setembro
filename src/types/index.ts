@@ -101,6 +101,9 @@ export interface SupportRequest {
   createdAt: Date
   status: SupportRequestStatus
   supporterCount?: number
+  message?: string
+  hasImage?: boolean
+  imagePath?: string
 }
 
 export interface Supporter {
@@ -109,6 +112,8 @@ export interface Supporter {
   nickname: string
   message: string
   createdAt: Date
+  hasImage?: boolean
+  imagePath?: string
 }
 
 export interface RankDefinition {

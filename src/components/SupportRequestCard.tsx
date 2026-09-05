@@ -1,11 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Image as ImageIcon } from 'lucide-react'
 import { Modal } from './Modal'
-import { strengthenWarrior, subscribeToSupporters, isSupportAlertVisible } from '../services/supportService'
+import { SupportComposeForm } from './SupportComposeForm'
+import {
+  strengthenWarrior,
+  subscribeToSupporters,
+  isSupportAlertVisible,
+  getSupportImageUrl,
+} from '../services/supportService'
 import { useCampaign } from '../contexts/CampaignContext'
-import { useEffect } from 'react'
 import type { SupportRequest, Supporter } from '../types'
 import { getRankById } from '../utils/ranks'
-import { QUICK_SUPPORT_MESSAGES, GAME_CONFIG } from '../config/gameConfig'
+import { QUICK_SUPPORT_MESSAGES } from '../config/gameConfig'
 
 interface SupportRequestCardProps {
   request: SupportRequest
@@ -14,11 +20,15 @@ interface SupportRequestCardProps {
 export function SupportRequestCard({ request }: SupportRequestCardProps) {
   const { campaign, player } = useCampaign()
   const [modalOpen, setModalOpen] = useState(false)
-  const [message, setMessage] = useState('')
   const [supporters, setSupporters] = useState<Supporter[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [canStrengthen, setCanStrengthen] = useState(() => isSupportAlertVisible(request.createdAt))
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [viewerTitle, setViewerTitle] = useState('')
+  const [viewerUrl, setViewerUrl] = useState('')
+  const [viewerLoading, setViewerLoading] = useState(false)
+  const [viewerError, setViewerError] = useState('')
 
   useEffect(() => {
     if (!campaign) return
@@ -40,19 +50,36 @@ export function SupportRequestCard({ request }: SupportRequestCardProps) {
   const rank = getRankById(request.rank)
   const alreadySupported = supporters.some((s) => s.userId === player?.id)
   const isOwnRequest = player?.id === request.playerId
+  const requestMessage = request.message?.trim() ?? ''
+  const hasRequestPlea = Boolean(requestMessage || request.hasImage)
 
-  async function handleStrengthen() {
+  async function handleStrengthen(payload: { message: string; imageFile?: File }) {
     if (!campaign) return
     setLoading(true)
     setError('')
     try {
-      await strengthenWarrior(campaign.id, request.id, message)
+      await strengthenWarrior(campaign.id, request.id, payload)
       setModalOpen(false)
-      setMessage('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao fortalecer')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function openViewer(title: string, target: { hasImage?: boolean; imagePath?: string }) {
+    setViewerTitle(title)
+    setViewerOpen(true)
+    setViewerUrl('')
+    setViewerError('')
+    setViewerLoading(true)
+    try {
+      const url = await getSupportImageUrl(target)
+      setViewerUrl(url)
+    } catch (err) {
+      setViewerError(err instanceof Error ? err.message : 'Não foi possível abrir a imagem')
+    } finally {
+      setViewerLoading(false)
     }
   }
 
@@ -66,6 +93,28 @@ export function SupportRequestCard({ request }: SupportRequestCardProps) {
         <p className="support-card__info">
           {request.daysSurvived} dias sobrevividos · {rank.name}
         </p>
+
+        {hasRequestPlea && (
+          <div className="support-card__plea">
+            {request.hasImage ? (
+              <button
+                type="button"
+                className="support-message__image-btn"
+                onClick={() => void openViewer(`${request.nickname} enviou uma imagem`, request)}
+              >
+                <strong>{request.nickname}</strong>
+                <span className="support-message__image-label">
+                  ABRIR IMAGEM
+                  <ImageIcon size={16} aria-hidden />
+                </span>
+              </button>
+            ) : (
+              <strong>{request.nickname}</strong>
+            )}
+            {requestMessage ? <p>"{requestMessage}"</p> : null}
+          </div>
+        )}
+
         <p className="support-card__count">🔥 {request.supporterCount ?? supporters.length} guerreiros enviaram força</p>
 
         {!isOwnRequest && !alreadySupported && player && canStrengthen && (
@@ -78,8 +127,22 @@ export function SupportRequestCard({ request }: SupportRequestCardProps) {
           <div className="support-card__messages">
             {supporters.slice(0, 3).map((s) => (
               <div key={s.id} className="support-message">
-                <strong>{s.nickname}</strong>
-                <p>"{s.message}"</p>
+                {s.hasImage ? (
+                  <button
+                    type="button"
+                    className="support-message__image-btn"
+                    onClick={() => void openViewer(`${s.nickname} enviou uma imagem`, s)}
+                  >
+                    <strong>{s.nickname}</strong>
+                    <span className="support-message__image-label">
+                      ABRIR IMAGEM
+                      <ImageIcon size={16} aria-hidden />
+                    </span>
+                  </button>
+                ) : (
+                  <strong>{s.nickname}</strong>
+                )}
+                {s.message ? <p>"{s.message}"</p> : null}
               </div>
             ))}
           </div>
@@ -87,43 +150,30 @@ export function SupportRequestCard({ request }: SupportRequestCardProps) {
       </div>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={`Fortalecer ${request.nickname}`}>
-        <p>Envie força para {request.nickname}.</p>
+        <SupportComposeForm
+          quickMessages={QUICK_SUPPORT_MESSAGES}
+          intro={`Envie força para ${request.nickname}.`}
+          messagePlaceholder="Sua mensagem de apoio..."
+          submitLabel="🔥 ENVIAR FORÇA"
+          error={error}
+          loading={loading}
+          onSubmit={handleStrengthen}
+        />
+      </Modal>
 
-        <div className="quick-messages">
-          {QUICK_SUPPORT_MESSAGES.map((msg) => (
-            <button
-              key={msg}
-              type="button"
-              className="quick-message-btn"
-              onClick={() => setMessage(msg)}
-            >
-              {msg}
-            </button>
-          ))}
+      <Modal
+        open={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        title={viewerTitle}
+        className="modal--wide"
+      >
+        <div className="support-image-viewer">
+          {viewerLoading && <p>Carregando imagem...</p>}
+          {viewerError && <p className="form-error">{viewerError}</p>}
+          {viewerUrl && !viewerLoading && (
+            <img src={viewerUrl} alt={viewerTitle} />
+          )}
         </div>
-
-        <div className="form-group">
-          <label htmlFor="support-message">DEIXE UMA MENSAGEM:</label>
-          <textarea
-            id="support-message"
-            value={message}
-            onChange={(e) => setMessage(e.target.value.slice(0, GAME_CONFIG.SUPPORT_MESSAGE_MAX_LENGTH))}
-            maxLength={GAME_CONFIG.SUPPORT_MESSAGE_MAX_LENGTH}
-            rows={3}
-            placeholder="Sua mensagem de apoio..."
-          />
-          <span className="char-count">{message.length}/{GAME_CONFIG.SUPPORT_MESSAGE_MAX_LENGTH}</span>
-        </div>
-
-        {error && <p className="form-error">{error}</p>}
-
-        <button
-          className="btn btn--support btn--full"
-          onClick={handleStrengthen}
-          disabled={loading || !message.trim()}
-        >
-          {loading ? 'ENVIANDO...' : '🔥 ENVIAR FORÇA'}
-        </button>
       </Modal>
     </>
   )

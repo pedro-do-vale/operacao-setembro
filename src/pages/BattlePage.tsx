@@ -8,9 +8,10 @@ import { ProgressBar, RankBadge } from '../components/ProgressBar'
 import { Modal } from '../components/Modal'
 import { performCheckIn, declareFall, joinCampaign } from '../services/campaignService'
 import { createSupportRequest, getSupportCooldownRemaining, isSupportAlertVisible, subscribeToSupportRequests } from '../services/supportService'
+import { SupportComposeForm } from '../components/SupportComposeForm'
+import { GAME_CONFIG, QUICK_SUPPORT_REQUEST_MESSAGES } from '../config/gameConfig'
 import { getCampaignDay, formatCooldown } from '../utils/dates'
 import { getCheckInAvailability } from '../utils/checkIn'
-import { GAME_CONFIG } from '../config/gameConfig'
 import {
   isRegistrationOpen,
   getSelectableStartDateKeys,
@@ -30,6 +31,8 @@ export function BattlePage() {
   const [checkInLoading, setCheckInLoading] = useState(false)
   const [fallModalOpen, setFallModalOpen] = useState(false)
   const [supportModalOpen, setSupportModalOpen] = useState(false)
+  const [supportLoading, setSupportLoading] = useState(false)
+  const [supportError, setSupportError] = useState('')
   const [promotionModal, setPromotionModal] = useState<string | null>(null)
   const [deathResult, setDeathResult] = useState<typeof player>(null)
   const [supportRequests, setSupportRequests] = useState<SupportRequest[]>([])
@@ -110,14 +113,17 @@ export function BattlePage() {
     }
   }
 
-  async function handleSupportRequest() {
+  async function handleSupportRequest(payload: { message: string; imageFile?: File }) {
     if (!campaign) return
-    setError('')
+    setSupportError('')
+    setSupportLoading(true)
     try {
-      await createSupportRequest(campaign.id)
+      await createSupportRequest(campaign.id, payload)
       setSupportModalOpen(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao pedir reforço')
+      setSupportError(err instanceof Error ? err.message : 'Erro ao pedir reforço')
+    } finally {
+      setSupportLoading(false)
     }
   }
 
@@ -305,7 +311,10 @@ export function BattlePage() {
 
           <button
             className="btn btn--full battle-action battle-action--support"
-            onClick={() => setSupportModalOpen(true)}
+            onClick={() => {
+              setSupportError('')
+              setSupportModalOpen(true)
+            }}
             disabled={cooldown > 0}
           >
             <span className="battle-action__icon" aria-hidden="true"><Radio /></span>
@@ -357,18 +366,16 @@ export function BattlePage() {
         </div>
       </Modal>
 
-      <Modal open={supportModalOpen} onClose={() => setSupportModalOpen(false)} title="🚨 PEDIR REFORÇO?" variant="default">
-        <p className="modal-text">
-          Os outros guerreiros serão avisados de que você está sob ataque.
-        </p>
-        <div className="modal-actions">
-          <button className="btn btn--secondary" onClick={() => setSupportModalOpen(false)}>
-            CANCELAR
-          </button>
-          <button className="btn btn--support" onClick={handleSupportRequest}>
-            🚨 CHAMAR REFORÇOS
-          </button>
-        </div>
+      <Modal open={supportModalOpen} onClose={() => setSupportModalOpen(false)} title="🚨 PEDIR REFORÇO?">
+        <SupportComposeForm
+          quickMessages={QUICK_SUPPORT_REQUEST_MESSAGES}
+          intro="Os outros guerreiros serão avisados de que você está sob ataque. Deixe uma mensagem e/ou uma imagem."
+          messagePlaceholder="O que está acontecendo?"
+          submitLabel="🚨 CHAMAR REFORÇOS"
+          error={supportError}
+          loading={supportLoading}
+          onSubmit={handleSupportRequest}
+        />
       </Modal>
 
       <Modal

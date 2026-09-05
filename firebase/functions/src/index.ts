@@ -42,6 +42,9 @@ const RANK_AVATAR_CONFIG: Record<string, Record<string, unknown>> = {
 }
 
 const SUPPORT_COOLDOWN_MS = 6 * 60 * 60 * 1000
+const SUPPORT_MESSAGE_MAX_LENGTH = 120
+const SUPPORT_IMAGE_MAX_STORAGE_BYTES = 300 * 1024
+const SUPPORT_REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/
 const DEFAULT_REGISTRATION_DEADLINE = '2026-09-04'
 const DEFAULT_CAMPAIGN_ID = 'operacao-setembro-2026'
 const REPAIR_ALLOWLIST = ['pedroduartedovale@gmail.com']
@@ -154,6 +157,46 @@ async function createFeedEvent(
     data,
     createdAt: FieldValue.serverTimestamp(),
   })
+}
+
+function parseSupportContent(data: { message?: unknown; hasImage?: unknown }) {
+  const message = typeof data.message === 'string' ? data.message : ''
+  const trimmed = message.trim()
+  const wantsImage = Boolean(data.hasImage)
+
+  if (trimmed.length > SUPPORT_MESSAGE_MAX_LENGTH) {
+    throw new HttpsError('invalid-argument', 'Mensagem inválida')
+  }
+  if (!trimmed && !wantsImage) {
+    throw new HttpsError('invalid-argument', 'Mensagem inválida')
+  }
+
+  return { trimmed, wantsImage }
+}
+
+function parseSupportRequestId(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !SUPPORT_REQUEST_ID_PATTERN.test(value)) return undefined
+  return value
+}
+
+async function assertStoredJpeg(imagePath: string) {
+  try {
+    const file = admin.storage().bucket().file(imagePath)
+    const [exists] = await file.exists()
+    if (!exists) throw new HttpsError('failed-precondition', 'Imagem não encontrada')
+    const [metadata] = await file.getMetadata()
+    const contentType = String(metadata.contentType ?? '')
+    const size = Number(metadata.size ?? 0)
+    if (contentType !== 'image/jpeg') {
+      throw new HttpsError('invalid-argument', 'Imagem inválida')
+    }
+    if (size > SUPPORT_IMAGE_MAX_STORAGE_BYTES) {
+      throw new HttpsError('invalid-argument', 'Imagem muito grande')
+    }
+  } catch (err) {
+    if (err instanceof HttpsError) throw err
+    throw new HttpsError('failed-precondition', 'Imagem não encontrada')
+  }
 }
 
 export const joinCampaign = onCall(async (request) => {
@@ -327,6 +370,13 @@ export const createSupportRequest = onCall(async (request) => {
 
   const { campaignId } = request.data
   const uid = request.auth.uid
+  const { trimmed, wantsImage } = parseSupportContent(request.data)
+  const requestedId = parseSupportRequestId(request.data.requestId)
+
+  if (wantsImage && !requestedId) {
+    throw new HttpsError('invalid-argument', 'Imagem inválida')
+  }
+
   const playerRef = db.collection('campaigns').doc(campaignId).collection('players').doc(uid)
   const playerSnap = await playerRef.get()
 
@@ -340,7 +390,20 @@ export const createSupportRequest = onCall(async (request) => {
     throw new HttpsError('resource-exhausted', 'Cooldown ativo')
   }
 
-  const requestRef = db.collection('campaigns').doc(campaignId).collection('supportRequests').doc()
+  const requests = db.collection('campaigns').doc(campaignId).collection('supportRequests')
+  const requestRef = requestedId ? requests.doc(requestedId) : requests.doc()
+
+  if (requestedId) {
+    const existing = await requestRef.get()
+    if (existing.exists) throw new HttpsError('already-exists', 'Pedido já existe')
+  }
+
+  let imagePath: string | undefined
+  if (wantsImage) {
+    imagePath = `campaigns/${campaignId}/supportRequests/${requestRef.id}/request.jpg`
+    await assertStoredJpeg(imagePath)
+  }
+
   const batch = db.batch()
 
   batch.set(requestRef, {
@@ -351,6 +414,9 @@ export const createSupportRequest = onCall(async (request) => {
     createdAt: FieldValue.serverTimestamp(),
     status: 'active',
     supporterCount: 0,
+    message: trimmed.slice(0, SUPPORT_MESSAGE_MAX_LENGTH),
+    hasImage: wantsImage,
+    imagePath: imagePath ?? null,
   })
   batch.update(playerRef, {
     lastSupportRequestAt: FieldValue.serverTimestamp(),
@@ -367,17 +433,23 @@ export const createSupportRequest = onCall(async (request) => {
     daysSurvived: player.daysSurvived,
     status: 'active',
     supporterCount: 0,
+    message: trimmed.slice(0, SUPPORT_MESSAGE_MAX_LENGTH),
+    hasImage: wantsImage,
+    imagePath: imagePath ?? null,
   }
 })
 
 export const strengthenWarrior = onCall(async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Não autenticado')
 
-  const { campaignId, requestId, message } = request.data
+  const { campaignId, requestId } = request.data
   const uid = request.auth.uid
+  const { trimmed, wantsImage } = parseSupportContent(request.data)
 
-  if (!message || message.length > 120) {
-    throw new HttpsError('invalid-argument', 'Mensagem inválida')
+  let imagePath: string | undefined
+  if (wantsImage) {
+    imagePath = `campaigns/${campaignId}/supportRequests/${requestId}/supporters/${uid}.jpg`
+    await assertStoredJpeg(imagePath)
   }
 
   const requestRef = db.collection('campaigns').doc(campaignId).collection('supportRequests').doc(requestId)
@@ -404,8 +476,10 @@ export const strengthenWarrior = onCall(async (request) => {
     tx.set(supporterRef, {
       userId: uid,
       nickname,
-      message: message.slice(0, 120),
+      message: trimmed.slice(0, SUPPORT_MESSAGE_MAX_LENGTH),
       createdAt: FieldValue.serverTimestamp(),
+      hasImage: wantsImage,
+      imagePath: imagePath ?? null,
     })
 
     tx.update(requestRef, {
