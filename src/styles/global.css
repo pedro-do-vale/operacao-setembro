@@ -78,11 +78,32 @@ img {
 }
 
 .app-layout__main {
+  position: relative;
   flex: 1;
   max-width: 600px;
   margin: 0 auto;
   width: 100%;
   padding: 1rem;
+}
+
+.app-logout {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.65rem;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.app-logout:hover {
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .sidebar-nav {
@@ -351,8 +372,10 @@ img {
 }
 
 .page-header {
+  position: relative;
   text-align: center;
   margin-bottom: 1.5rem;
+  padding-inline: 2.25rem;
 }
 
 .page-header h1 {
@@ -375,8 +398,10 @@ img {
 
 /* Battle */
 .battle-page__header {
+  position: relative;
   text-align: center;
   margin-bottom: 1.5rem;
+  padding-inline: 2.25rem;
 }
 
 .battle-page__header h1 {
@@ -394,33 +419,6 @@ img {
 .battle-page__survivors {
   color: var(--color-text-muted);
   font-size: 0.85rem;
-}
-
-.battle-card {
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 1.5rem;
-  text-align: center;
-  margin-bottom: 1.5rem;
-}
-
-.battle-card__nickname {
-  font-size: 1.5rem;
-  margin: 0.75rem 0 0.5rem;
-  letter-spacing: 0.05em;
-}
-
-.battle-card__days {
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-  margin: 0.5rem 0;
-}
-
-.battle-card__ranking {
-  color: var(--color-gold);
-  font-weight: 600;
-  margin-top: 0.75rem;
 }
 
 .battle-actions {
@@ -594,29 +592,187 @@ img {
   }
 }
 
-/* Progress */
-.progress-bar {
+/* Rank timeline */
+.rank-timeline {
   margin-top: 1rem;
 }
 
-.progress-bar__track {
-  height: 8px;
+.rank-timeline__track {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  list-style: none;
+  overflow-x: auto;
+  padding: 0.85rem 0.25rem 0.65rem;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-gold) transparent;
+}
+
+.rank-timeline__item {
+  position: relative;
+  flex: 0 0 auto;
+  width: 4.5rem;
+  scroll-snap-align: center;
+  text-align: center;
+}
+
+.rank-timeline__node-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  height: 2rem;
+  margin-bottom: 0.45rem;
+}
+
+.rank-timeline__node {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
   background: var(--color-bg);
-  border-radius: 4px;
+  overflow: hidden;
+  transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.rank-timeline__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  line-height: 1;
+  opacity: 0.45;
+  filter: grayscale(1);
+  transition: opacity 0.25s ease, filter 0.25s ease;
+  max-width: 100%;
   overflow: hidden;
 }
 
-.progress-bar__fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--color-gold) 0%, var(--color-gold-light) 100%);
-  border-radius: 4px;
-  transition: width 0.5s ease;
+.rank-timeline__icon--stars {
+  gap: 0;
+  font-size: 0.42rem;
+  letter-spacing: -0.12em;
+  padding-right: 0.12em;
 }
 
-.progress-bar__label {
+.rank-timeline__connector {
+  position: absolute;
+  left: calc(50% + 0.95rem);
+  right: calc(-50% + 0.95rem);
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  background: var(--color-border);
+}
+
+.rank-timeline__name {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  padding: 0 0.15rem;
+}
+
+.rank-timeline__days {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  color: #5c5c68;
+}
+
+.rank-timeline__label {
   font-size: 0.75rem;
   color: var(--color-text-muted);
-  margin-top: 0.4rem;
+  margin-top: 0.35rem;
+}
+
+.rank-timeline__item--completed .rank-timeline__node {
+  border-color: var(--color-gold);
+  background: linear-gradient(145deg, var(--color-gold) 0%, #a07d1a 100%);
+}
+
+.rank-timeline__item--completed .rank-timeline__icon {
+  opacity: 0.95;
+  filter: none;
+}
+
+.rank-timeline__item--completed .rank-timeline__connector {
+  background: linear-gradient(90deg, var(--color-gold), var(--color-gold-light));
+}
+
+.rank-timeline__item--completed .rank-timeline__name {
+  color: #cfc8b8;
+}
+
+.rank-timeline__item--completed .rank-timeline__days {
+  color: #8a7f66;
+}
+
+.rank-timeline__item--current .rank-timeline__node {
+  border-color: var(--color-gold-light);
+  background: #2a2414;
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.22);
+  transform: scale(1.12);
+  overflow: visible;
+}
+
+.rank-timeline__item--current .rank-timeline__node::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(232, 197, 71, 0.55);
+  pointer-events: none;
+  animation: rank-milestone-radar 1.8s ease-out infinite;
+}
+
+.rank-timeline__item--current .rank-timeline__icon {
+  opacity: 1;
+  filter: none;
+}
+
+.rank-timeline__item--current .rank-timeline__name {
+  color: var(--color-gold-light);
+  font-weight: 750;
+}
+
+.rank-timeline__item--current .rank-timeline__days {
+  color: var(--color-gold);
+}
+
+.rank-timeline__item--upcoming .rank-timeline__name {
+  color: #5a5a66;
+}
+
+@keyframes rank-milestone-radar {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(2.35);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rank-timeline__item--current .rank-timeline__node::after {
+    animation: none;
+  }
 }
 
 .rank-badge {
@@ -1162,7 +1318,7 @@ img {
   color: var(--color-text-muted);
 }
 
-/* Profile */
+/* Warrior card (battle + profile) */
 .profile-card {
   background: linear-gradient(180deg, #19171b 0%, var(--color-bg-card) 62%);
   border: 1px solid #332d29;
@@ -1222,11 +1378,47 @@ img {
     0 0 70px rgba(194, 120, 44, 0.08);
 }
 
+.profile-hero__embers {
+  position: absolute;
+  inset: 12% 18% 18%;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.profile-hero__ember {
+  position: absolute;
+  bottom: 8%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #f0d78a 0%, var(--color-gold) 45%, transparent 75%);
+  box-shadow: 0 0 6px rgba(232, 197, 71, 0.55);
+  opacity: 0;
+  --ember-x: 10px;
+  animation: profile-hero-ember 7s linear infinite;
+}
+
+.profile-hero__ember--1 { left: 12%; --ember-x: 14px; animation-delay: 0s; animation-duration: 6.4s; }
+.profile-hero__ember--2 { left: 20%; width: 2px; height: 2px; --ember-x: -12px; animation-delay: 1.1s; animation-duration: 7.2s; }
+.profile-hero__ember--3 { left: 28%; --ember-x: 8px; animation-delay: 2.4s; animation-duration: 6.8s; }
+.profile-hero__ember--4 { left: 36%; width: 4px; height: 4px; --ember-x: -16px; animation-delay: 0.6s; animation-duration: 7.8s; }
+.profile-hero__ember--5 { left: 44%; width: 2px; height: 2px; --ember-x: 18px; animation-delay: 3.2s; animation-duration: 6.2s; }
+.profile-hero__ember--6 { left: 52%; --ember-x: -8px; animation-delay: 4.1s; animation-duration: 7.5s; }
+.profile-hero__ember--7 { left: 60%; width: 2px; height: 2px; --ember-x: 11px; animation-delay: 0.9s; animation-duration: 6.9s; }
+.profile-hero__ember--8 { left: 68%; width: 3px; height: 3px; --ember-x: -14px; animation-delay: 2.8s; animation-duration: 7.4s; }
+.profile-hero__ember--9 { left: 74%; width: 2px; height: 2px; --ember-x: 16px; animation-delay: 1.7s; animation-duration: 6.5s; }
+.profile-hero__ember--10 { left: 80%; width: 4px; height: 4px; --ember-x: -10px; animation-delay: 3.8s; animation-duration: 8s; }
+.profile-hero__ember--11 { left: 86%; width: 2px; height: 2px; --ember-x: 7px; animation-delay: 5s; animation-duration: 6.6s; }
+.profile-hero__ember--12 { left: 92%; --ember-x: -18px; animation-delay: 2s; animation-duration: 7.1s; }
+
 .profile-hero__avatar {
   z-index: 2;
   width: min(92vw, 400px);
   height: min(92vw, 400px);
   margin-bottom: -6px;
+  transform-origin: 50% 80%;
+  animation: profile-hero-sway 5.5s ease-in-out infinite;
 }
 
 .profile-hero__ground {
@@ -1238,6 +1430,54 @@ img {
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.62);
   filter: blur(9px);
+}
+
+.profile-hero--fallen .profile-hero__ember {
+  background: radial-gradient(circle, #9aa3b2 0%, #5c6470 45%, transparent 75%);
+  box-shadow: 0 0 5px rgba(140, 150, 165, 0.35);
+  animation-duration: 9s;
+}
+
+.profile-hero--fallen .profile-hero__avatar {
+  animation-duration: 8s;
+}
+
+@keyframes profile-hero-sway {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-0.45deg);
+  }
+  50% {
+    transform: translate3d(0, -4px, 0) rotate(0.45deg);
+  }
+}
+
+@keyframes profile-hero-ember {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.7);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.85;
+  }
+  70% {
+    opacity: 0.45;
+  }
+  100% {
+    transform: translate3d(var(--ember-x), -170px, 0) scale(0.2);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-hero__avatar,
+  .profile-hero__ember {
+    animation: none;
+  }
+
+  .profile-hero__ember {
+    opacity: 0;
+  }
 }
 
 .profile-card__identity {
@@ -1276,13 +1516,12 @@ img {
 }
 
 .profile-card__progress {
-  max-width: 390px;
+  max-width: 420px;
   margin: 0 auto;
 }
 
-.profile-card__progress .progress-bar__track {
-  height: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+.profile-card__progress .rank-timeline__track {
+  padding-bottom: 0.75rem;
 }
 
 .profile-card__meta {
@@ -1321,95 +1560,23 @@ img {
   }
 }
 
-.achievements-section {
-  margin-bottom: 1.5rem;
-}
-
-.achievements-section h3 {
-  margin-bottom: 0.75rem;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-text-muted);
-}
-
-.achievements-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.75rem;
-}
-
-.achievement-badge {
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 0.75rem;
-  text-align: center;
-}
-
-.achievement-badge span {
-  font-size: 1.5rem;
-}
-
-.achievement-badge strong {
-  display: block;
-  font-size: 0.8rem;
-  margin: 0.25rem 0;
-}
-
-.achievement-badge small {
-  font-size: 0.7rem;
-  color: var(--color-text-muted);
-}
-
 .epitaph-section {
-  margin-top: 1rem;
+  margin-top: 1.25rem;
   text-align: left;
 }
 
-.epitaph-suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 0.5rem 0;
+.epitaph-section .quick-messages {
+  margin: 0 0 0.75rem;
 }
 
-.profile-evolution-link {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin: -0.25rem 0 1.5rem;
-  padding: 1rem 1.15rem;
-  border: 1px solid rgba(201, 162, 39, 0.32);
-  border-radius: var(--radius);
-  background:
-    linear-gradient(100deg, rgba(201, 162, 39, 0.11), transparent 62%),
-    var(--color-bg-card);
-  color: var(--color-text);
+.epitaph-section .form-group {
+  margin-bottom: 0.75rem;
 }
 
-.profile-evolution-link span:first-child {
-  display: flex;
-  flex-direction: column;
-  text-align: left;
-}
-
-.profile-evolution-link small {
-  color: var(--color-gold);
-  font-size: 0.6rem;
-  letter-spacing: 0.18em;
-}
-
-.profile-evolution-link strong {
-  margin-top: 0.15rem;
-  font-size: 0.82rem;
-  letter-spacing: 0.05em;
-}
-
-.profile-evolution-link > span:last-child {
-  color: var(--color-gold-light);
-  font-size: 1.5rem;
+.epitaph-section .form-group textarea {
+  resize: none;
+  min-height: 4.5rem;
+  line-height: 1.45;
 }
 
 /* Character evolution gallery */
@@ -1418,9 +1585,11 @@ img {
 }
 
 .evolution-page__header {
+  position: relative;
   max-width: 620px;
   margin: 0 auto 1.5rem;
   text-align: center;
+  padding-inline: 2.25rem;
 }
 
 .evolution-page__eyebrow {
@@ -1657,7 +1826,7 @@ img {
 /* Join campaign */
 .join-campaign {
   text-align: center;
-  padding: 2rem 0;
+  padding: 2rem 2.25rem;
 }
 
 .join-campaign__subtitle {

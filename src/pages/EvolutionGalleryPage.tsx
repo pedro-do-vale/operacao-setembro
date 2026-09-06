@@ -3,16 +3,18 @@ import { AvatarRenderer } from '../components/AvatarRenderer'
 import { RANKS } from '../config/ranks'
 import { RANK_ART_BY_ID } from '../config/avatarArt'
 import { buildAvatarConfigForRank } from '../utils/ranks'
+import { useCampaign } from '../contexts/CampaignContext'
 import type { AvatarBase } from '../types'
 
 export function EvolutionGalleryPage() {
-  const [avatarBase, setAvatarBase] = useState<AvatarBase>('base-a')
+  const { player } = useCampaign()
+  const [avatarBase, setAvatarBase] = useState<AvatarBase>(player?.avatarBase ?? 'base-a')
 
   return (
     <div className="page evolution-page">
       <header className="evolution-page__header">
         <p className="evolution-page__eyebrow">ARSENAL DE PATENTES</p>
-        <h1>EVOLUÇÃO DO GUERREIRO</h1>
+        <h1>GALERIA DE PATENTES</h1>
         <p>
           Sobreviva. Suba de patente. Desbloqueie uma nova presença no campo de batalha.
         </p>

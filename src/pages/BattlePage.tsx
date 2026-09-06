@@ -5,11 +5,12 @@ import { useCampaign } from '../contexts/CampaignContext'
 import { useAuth } from '../contexts/AuthContext'
 import { AvatarRenderer } from '../components/AvatarRenderer'
 import { ProgressBar, RankBadge } from '../components/ProgressBar'
+import { ProfileHero } from '../components/ProfileHero'
 import { Modal } from '../components/Modal'
-import { performCheckIn, declareFall, joinCampaign } from '../services/campaignService'
+import { performCheckIn, declareFall, joinCampaign, setEpitaph } from '../services/campaignService'
 import { createSupportRequest, getSupportCooldownRemaining, isSupportAlertVisible, subscribeToSupportRequests } from '../services/supportService'
 import { SupportComposeForm } from '../components/SupportComposeForm'
-import { GAME_CONFIG, QUICK_SUPPORT_REQUEST_MESSAGES } from '../config/gameConfig'
+import { GAME_CONFIG, EPITAPH_SUGGESTIONS, QUICK_SUPPORT_REQUEST_MESSAGES } from '../config/gameConfig'
 import { getCampaignDay, formatCooldown } from '../utils/dates'
 import { getCheckInAvailability } from '../utils/checkIn'
 import {
@@ -41,12 +42,18 @@ export function BattlePage() {
   const [joining, setJoining] = useState(false)
   const [personalStartDate, setPersonalStartDate] = useState('')
   const [now, setNow] = useState(() => Date.now())
+  const [epitaph, setEpitaphText] = useState('')
+  const [savingEpitaph, setSavingEpitaph] = useState(false)
 
   useEffect(() => {
     if (!campaign) return
     const unsub = subscribeToSupportRequests(campaign.id, setSupportRequests)
     return unsub
   }, [campaign])
+
+  useEffect(() => {
+    if (player?.epitaph != null) setEpitaphText(player.epitaph)
+  }, [player?.epitaph])
 
   useEffect(() => {
     if (!campaign || player) return
@@ -110,6 +117,18 @@ export function BattlePage() {
       setDeathResult(fallen)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao registrar queda')
+    }
+  }
+
+  async function handleSaveEpitaph() {
+    if (!campaign || !player) return
+    setSavingEpitaph(true)
+    try {
+      await setEpitaph(campaign.id, epitaph)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao salvar epitáfio')
+    } finally {
+      setSavingEpitaph(false)
     }
   }
 
@@ -220,6 +239,9 @@ export function BattlePage() {
   const avatarConfig = player.status === 'fallen' && player.avatarSnapshotAtDeath
     ? player.avatarSnapshotAtDeath
     : player.avatarConfig
+  const displayedRankId = player.status === 'fallen'
+    ? (player.rankAtDeath ?? player.currentRank)
+    : player.currentRank
   const checkInState = getCheckInAvailability({
     personalStartDate: player.personalStartDate,
     lastConfirmedDate: player.lastConfirmedDate,
@@ -227,6 +249,12 @@ export function BattlePage() {
   const otherRequests = supportRequests.filter(
     (r) => r.playerId !== player.id && isSupportAlertVisible(r.createdAt, new Date(now))
   )
+  const statusEyebrow =
+    player.status === 'monk'
+      ? 'TRANSCENDIDO'
+      : player.status === 'fallen'
+        ? 'BAIXA CONFIRMADA'
+        : 'GUERREIRO EM COMBATE'
 
   if (deathResult) {
     const deathRank = getRankById(deathResult.rankAtDeath ?? deathResult.currentRank)
@@ -260,17 +288,82 @@ export function BattlePage() {
         <p className="battle-page__survivors">⚔️ {aliveCount} GUERREIROS RESTANTES</p>
       </header>
 
-      <div className="battle-card">
-        <AvatarRenderer avatarConfig={avatarConfig} rankId={player.currentRank} status={player.status} size="xl" />
-        <h2 className="battle-card__nickname">{player.nickname}</h2>
-        <RankBadge rankId={player.currentRank} />
-        <p className="battle-card__days">{player.daysSurvived} DIAS DE COMBATE</p>
-        {player.status === 'alive' && (
-          <ProgressBar days={player.daysSurvived} rankId={player.currentRank} />
-        )}
-        {playerRank > 0 && (
-          <p className="battle-card__ranking">Ranking #{playerRank}</p>
-        )}
+      <div className="profile-card">
+        <ProfileHero
+          nickname={player.nickname}
+          avatarConfig={avatarConfig}
+          rankId={displayedRankId}
+          status={player.status}
+        />
+
+        <div className="profile-card__identity">
+          <p className="profile-card__eyebrow">{statusEyebrow}</p>
+          <h2>{player.nickname}</h2>
+
+          {player.status === 'alive' && (
+            <>
+              <RankBadge rankId={player.currentRank} />
+              <p className="profile-card__days">{player.daysSurvived} DIAS DE COMBATE</p>
+              <div className="profile-card__progress">
+                <ProgressBar days={player.daysSurvived} rankId={player.currentRank} />
+              </div>
+              <div className="profile-card__meta">
+                <span className="status-badge status-badge--alive">🔥 EM COMBATE</span>
+                {playerRank > 0 && <span>RANKING #{playerRank}</span>}
+              </div>
+            </>
+          )}
+
+          {player.status === 'monk' && (
+            <>
+              <span className="status-badge status-badge--monk">∞ MONGE</span>
+              <p className="profile-card__days">30 DIAS DE COMBATE — VOCÊ TRANSCENDEU</p>
+              {playerRank > 0 && (
+                <div className="profile-card__meta">
+                  <span>RANKING #{playerRank}</span>
+                </div>
+              )}
+            </>
+          )}
+
+          {player.status === 'fallen' && (
+            <>
+              <span className="status-badge status-badge--fallen">💀 MORTO EM COMBATE</span>
+              <p className="profile-card__days">{player.fallenDay} DIAS DE COMBATE</p>
+              <p>Patente final: {getRankById(displayedRankId).name}</p>
+              {playerRank > 0 && (
+                <div className="profile-card__meta">
+                  <span>RANKING #{playerRank}</span>
+                </div>
+              )}
+
+              <div className="epitaph-section">
+                <div className="quick-messages">
+                  {EPITAPH_SUGGESTIONS.map((s) => (
+                    <button key={s} type="button" className="quick-message-btn" onClick={() => setEpitaphText(s)}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+                <div className="form-group">
+                  <label htmlFor="epitaph">EPITÁFIO</label>
+                  <textarea
+                    id="epitaph"
+                    value={epitaph}
+                    onChange={(e) => setEpitaphText(e.target.value.slice(0, GAME_CONFIG.EPITAPH_MAX_LENGTH))}
+                    maxLength={GAME_CONFIG.EPITAPH_MAX_LENGTH}
+                    rows={2}
+                    placeholder="Sua última palavra..."
+                  />
+                  <span className="char-count">{epitaph.length}/{GAME_CONFIG.EPITAPH_MAX_LENGTH}</span>
+                </div>
+                <button className="btn btn--secondary btn--full" onClick={handleSaveEpitaph} disabled={savingEpitaph}>
+                  {savingEpitaph ? 'SALVANDO...' : 'SALVAR EPITÁFIO'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {error && <p className="form-error">{error}</p>}

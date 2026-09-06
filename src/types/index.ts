@@ -127,11 +127,3 @@ export interface RankDefinition {
   unlocks: string[]
   avatarConfig: Partial<AvatarConfig>
 }
-
-export interface AchievementDefinition {
-  id: string
-  name: string
-  icon: string
-  description: string
-  condition: (player: CampaignPlayer) => boolean
-}

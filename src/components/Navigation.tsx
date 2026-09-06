@@ -1,12 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { Swords, Trophy, ScrollText, Skull, Shield } from 'lucide-react'
+import { Swords, Trophy, ScrollText, Skull, Medal } from 'lucide-react'
 
 const NAV_ITEMS = [
   { to: '/batalha', label: 'Batalha', icon: Swords, emoji: '⚔️' },
   { to: '/ranking', label: 'Ranking', icon: Trophy, emoji: '🏆' },
   { to: '/feed', label: 'Feed', icon: ScrollText, emoji: '📜' },
   { to: '/cemiterio', label: 'Cemitério', icon: Skull, emoji: '💀' },
-  { to: '/perfil', label: 'Perfil', icon: Shield, emoji: '🛡️' },
+  { to: '/evolucao', label: 'Patentes', icon: Medal, emoji: '🎖️' },
 ]
 
 export function BottomNav() {
