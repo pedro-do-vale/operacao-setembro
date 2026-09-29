@@ -1,12 +1,31 @@
 import type { User as FirebaseUser } from 'firebase/auth'
 import type { AvatarBase, User } from '../../types'
 
-type DemoUser = User & { email: string; password: string }
+type DemoUser = User & { email: string; password: string; demoLabel?: string }
 
 const DEMO_USERS: DemoUser[] = [
+  { uid: 'p15', nickname: 'PEREGRINO', avatarBase: 'base-a', createdAt: new Date(), email: 'travessia@demo.com', password: 'demo123', demoLabel: 'ÚLTIMA TRAVESSIA · DIA 29' },
   { uid: 'p1', nickname: 'PEDRÃO', avatarBase: 'base-a', createdAt: new Date(), email: 'pedrao@demo.com', password: 'demo123' },
   { uid: 'p2', nickname: 'BRUNÃO', avatarBase: 'base-b', createdAt: new Date(), email: 'brunao@demo.com', password: 'demo123' },
   { uid: 'p9', nickname: 'JOÃO', avatarBase: 'base-a', createdAt: new Date(), email: 'joao@demo.com', password: 'demo123' },
+  {
+    uid: 'p13',
+    nickname: 'ATRASADO',
+    avatarBase: 'base-b',
+    createdAt: new Date(),
+    email: 'sem-checkin@demo.com',
+    password: 'demo123',
+    demoLabel: '3 DIAS SEM CHECK-IN',
+  },
+  {
+    uid: 'p14',
+    nickname: 'RETARDATÁRIO',
+    avatarBase: 'base-a',
+    createdAt: new Date(),
+    email: 'checkin-atrasado@demo.com',
+    password: 'demo123',
+    demoLabel: '2 DIAS ATRASADO',
+  },
 ]
 
 let currentUid: string | null = null
@@ -62,5 +81,9 @@ export const demoAuth = {
     return () => listeners.delete(callback)
   },
 
-  getDemoAccounts: () => DEMO_USERS.map((u) => ({ email: u.email, nickname: u.nickname })),
+  getDemoAccounts: () => DEMO_USERS.map((u) => ({
+    email: u.email,
+    nickname: u.nickname,
+    label: u.demoLabel ?? u.nickname,
+  })),
 }

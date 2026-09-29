@@ -1,5 +1,9 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { MonkCeremony } from '../components/MonkCeremony'
+import { FinalBattlePrelude } from '../components/FinalBattlePrelude'
+import { useMonkSoundtrack } from '../hooks/useMonkSoundtrack'
+import { MonkShareCard } from '../components/MonkShareCard'
 import { CircleCheck, Clock3, LoaderCircle, Radio, ShieldCheck, Skull } from 'lucide-react'
 import { useCampaign } from '../contexts/CampaignContext'
 import { useAuth } from '../contexts/AuthContext'
@@ -22,10 +26,14 @@ import {
 import { getRankById, getRankForDays } from '../utils/ranks'
 import { SupportRequestCard } from '../components/SupportRequestCard'
 import { useEffect } from 'react'
-import type { SupportRequest } from '../types'
+import type { CampaignPlayer, SupportRequest } from '../types'
 
 export function BattlePage() {
-  const { campaign, player, aliveCount, playerRank, loading } = useCampaign()
+  const { soundEnabled, startSoundtrack, stopSoundtrack, toggleSoundtrack } = useMonkSoundtrack()
+  const { campaign, player: campaignPlayer, players, aliveCount, playerRank, loading } = useCampaign()
+  const [finalIntro, setFinalIntro] = useState(false)
+  const [introPlayer, setIntroPlayer] = useState<CampaignPlayer | null>(null)
+  const player = finalIntro && introPlayer ? introPlayer : campaignPlayer
   const { userProfile } = useAuth()
   const navigate = useNavigate()
 
@@ -35,6 +43,8 @@ export function BattlePage() {
   const [supportLoading, setSupportLoading] = useState(false)
   const [supportError, setSupportError] = useState('')
   const [promotionModal, setPromotionModal] = useState<string | null>(null)
+  const [ceremonyPlayer, setCeremonyPlayer] = useState<typeof player>(null)
+  const [introComplete, setIntroComplete] = useState(false)
   const [deathResult, setDeathResult] = useState<typeof player>(null)
   const [supportRequests, setSupportRequests] = useState<SupportRequest[]>([])
   const [cooldown, setCooldown] = useState(0)
@@ -95,14 +105,29 @@ export function BattlePage() {
 
   async function handleCheckIn() {
     if (!campaign || !player) return
+    if (player.daysSurvived === 29) {
+      startSoundtrack()
+      setIntroPlayer({ ...player })
+      setIntroComplete(false)
+      setFinalIntro(true)
+    }
     setCheckInLoading(true)
     setError('')
     try {
       const result = await performCheckIn(campaign.id)
-      if (result.promoted && result.newRank) {
+      if (result.promoted && result.newRank === 'monge' && result.player.status === 'monk') {
+        setCeremonyPlayer(result.player)
+      } else if (result.promoted && result.newRank) {
+        stopSoundtrack()
+        setFinalIntro(false)
         setPromotionModal(result.newRank)
+      } else {
+        stopSoundtrack()
+        setFinalIntro(false)
       }
     } catch (err) {
+      setFinalIntro(false)
+      stopSoundtrack()
       setError(err instanceof Error ? err.message : 'Erro no check-in')
     } finally {
       setCheckInLoading(false)
@@ -246,6 +271,9 @@ export function BattlePage() {
     personalStartDate: player.personalStartDate,
     lastConfirmedDate: player.lastConfirmedDate,
   })
+  const checkInDateLabel = checkInState.checkInDate
+    ? checkInState.checkInDate.split('-').slice(1).reverse().join('/')
+    : ''
   const otherRequests = supportRequests.filter(
     (r) => r.playerId !== player.id && isSupportAlertVisible(r.createdAt, new Date(now))
   )
@@ -288,7 +316,7 @@ export function BattlePage() {
         <p className="battle-page__survivors">⚔️ {aliveCount} GUERREIROS RESTANTES</p>
       </header>
 
-      <div className="profile-card">
+      <div className={`profile-card ${player.status === 'monk' ? 'profile-card--ascended' : player.status === 'alive' && player.daysSurvived === 29 ? 'profile-card--threshold' : ''}`}>
         <ProfileHero
           nickname={player.nickname}
           avatarConfig={avatarConfig}
@@ -318,6 +346,11 @@ export function BattlePage() {
             <>
               <span className="status-badge status-badge--monk">∞ MONGE</span>
               <p className="profile-card__days">30 DIAS DE COMBATE — VOCÊ TRANSCENDEU</p>
+              <div className="monk-actions">
+                <button className="btn btn--secondary" onClick={() => { startSoundtrack(); setCeremonyPlayer(player) }}>REVER TRAVESSIA</button>
+                <Link className="btn btn--primary" to="/templo">ENTRAR NO TEMPLO</Link>
+              </div>
+              <MonkShareCard player={player} campaignName={campaign.name} />
               {playerRank > 0 && (
                 <div className="profile-card__meta">
                   <span>RANKING #{playerRank}</span>
@@ -368,6 +401,13 @@ export function BattlePage() {
 
       {error && <p className="form-error">{error}</p>}
 
+      {player.status === 'alive' && player.daysSurvived === 29 && (
+        <section className="monk-threshold">
+          <span aria-hidden="true">∞</span>
+          <div><p className="monk-eyebrow">ÀS PORTAS DA ETERNIDADE</p><p>Uma última batalha. Depois dela, a eternidade.</p><small>A travessia começa ao confirmar seu 30º dia completo.</small></div>
+        </section>
+      )}
+
       {player.status === 'alive' && (
         <div className="battle-actions">
           <button
@@ -382,6 +422,8 @@ export function BattlePage() {
                 <CircleCheck />
               ) : checkInState.reason === 'too-early' ? (
                 <Clock3 />
+              ) : checkInState.reason === 'missed-limit' ? (
+                <Skull />
               ) : (
                 <ShieldCheck />
               )}
@@ -390,14 +432,26 @@ export function BattlePage() {
               <span className="battle-action__label">
                 {checkInLoading
                   ? 'REGISTRANDO...'
+                  : player.daysSurvived === 29 && checkInState.canCheckIn
+                    ? 'CONCLUIR A ÚLTIMA BATALHA'
                   : checkInState.reason === 'already-confirmed'
                     ? 'ONTEM CONFIRMADO'
                     : checkInState.reason === 'too-early'
                       ? 'LIBERA À MEIA-NOITE'
-                      : 'SOBREVIVI ONTEM'}
+                      : checkInState.reason === 'missed-limit'
+                        ? '3 DIAS SEM CHECK-IN'
+                        : checkInState.checkInDate === checkInState.yesterday
+                          ? 'SOBREVIVI ONTEM'
+                          : `CONFIRMAR ${checkInDateLabel}`}
               </span>
               <span className="battle-action__hint">
-                {checkInState.canCheckIn ? 'Confirmar mais um dia de campanha' : 'Check-in diário indisponível'}
+                {checkInState.reason === 'missed-limit'
+                  ? 'Baixa automática confirmada pelo sistema'
+                  : checkInState.canCheckIn
+                    ? checkInState.pendingCount > 1
+                      ? `${checkInState.pendingCount} check-ins pendentes — confirme o mais antigo`
+                      : 'Confirmar mais um dia de campanha'
+                    : 'Check-in diário indisponível'}
               </span>
             </span>
           </button>
@@ -443,6 +497,9 @@ export function BattlePage() {
           ))}
         </section>
       )}
+
+      {finalIntro && (!introComplete || !ceremonyPlayer) && <FinalBattlePrelude onComplete={() => setIntroComplete(true)} />}
+      {ceremonyPlayer && (!finalIntro || introComplete) && <MonkCeremony player={ceremonyPlayer} campaign={campaign} players={players} soundEnabled={soundEnabled} onToggleSound={toggleSoundtrack} onClose={() => { stopSoundtrack(); setCeremonyPlayer(null); setFinalIntro(false) }} />}
 
       <Modal open={fallModalOpen} onClose={() => setFallModalOpen(false)} title="TEM CERTEZA?" variant="danger">
         <p className="modal-text">

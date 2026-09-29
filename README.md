@@ -53,6 +53,31 @@ Contas demo na tela de login (senha: `demo123`):
 - `pedrao@demo.com` — PEDRÃO (Capitão, vivo)
 - `brunao@demo.com` — BRUNÃO (Tenente, vivo)
 - `joao@demo.com` — JOÃO (morto)
+- `travessia@demo.com` — PEREGRINO (Rei, 29 dias; último check-in disponível para testar a ascensão)
+
+### Última Travessia
+
+Ao clicar no último check-in, uma abertura de 7 segundos faz a tela tremer e escurecer.
+Após esse intervalo e a confirmação do servidor, a cerimônia percorre as patentes
+até Rei. Um brilho dourado cobre toda a tela e se dissipa para revelar o Monge.
+O botão "Ver a minha trajetória" abre a timeline vertical dos 30 dias, feita para
+leitura no celular. Ela consulta todo o feed e os
+pedidos de socorro, inclusive encerrados, e inclui baixas, mensagens e registros
+pessoais de promoção. Os marcos de patente seguem os dias sobrevividos; os registros
+mostram suas datas de confirmação. Dias sem acontecimentos são indicados explicitamente.
+Ao tocar em "Voltar à conquista", o jogador retorna à tela do Monge.
+É possível pular,
+silenciar a música ou rever a cerimônia pelo perfil e pelo Templo. A trilha local
+(`src/assets/audio/monk-travessia.mp3`) começa em 00:13 no clique do último check-in,
+continua durante a abertura e a cerimônia e para ao fechar ou sair da página.
+Rever a Travessia inicia a faixa novamente em 00:13. A preferência
+de movimento reduzido apresenta a conquista diretamente.
+
+O Templo dos Monges (`/templo`) está disponível pelo Ranking e pelo perfil de quem
+concluiu a campanha. Exibe os monges da campanha atual e a data do último check-in,
+que fica congelada após a conclusão. O cartão da conquista é gerado localmente em
+PNG (1080 × 1350), com download e compartilhamento nativo quando suportado pelo navegador.
+No modo demo, as alterações são reiniciadas ao recarregar a página.
 
 ```bash
 npm run dev
@@ -144,21 +169,6 @@ Comandos úteis:
 | `npm run deploy:hosting` | Apenas o frontend |
 
 URL após deploy: `https://<seu-projeto>.web.app`
-
-### Deploy automático (GitHub Actions)
-
-O workflow `.github/workflows/deploy.yml` publica no push para `main`.
-
-Configure estes secrets no repositório:
-
-- `FIREBASE_PROJECT_ID`
-- `FIREBASE_SERVICE_ACCOUNT` (JSON da service account)
-- `VITE_FIREBASE_API_KEY`
-- `VITE_FIREBASE_AUTH_DOMAIN`
-- `VITE_FIREBASE_PROJECT_ID`
-- `VITE_FIREBASE_STORAGE_BUCKET`
-- `VITE_FIREBASE_MESSAGING_SENDER_ID`
-- `VITE_FIREBASE_APP_ID`
 
 ## Arquitetura
 

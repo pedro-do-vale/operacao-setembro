@@ -69,7 +69,9 @@ export function ProgressBar({ days, rankId }: ProgressBarProps) {
                 <span
                   className="rank-timeline__node"
                   aria-current={state === 'current' ? 'step' : undefined}
-                  title={`${rank.name} (dia ${rank.minDays}–${rank.maxDays})`}
+                  title={`${rank.name} (${rank.minDays === rank.maxDays
+                    ? `dia ${rank.minDays}`
+                    : `dias ${rank.minDays}–${rank.maxDays}`})`}
                 >
                   <MilestoneIcon rank={rank} />
                 </span>

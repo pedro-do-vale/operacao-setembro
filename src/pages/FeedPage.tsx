@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useCampaign } from '../contexts/CampaignContext'
 import { subscribeToFeed, formatFeedMessage } from '../services/feedService'
 import { SupportRequestCard } from '../components/SupportRequestCard'
@@ -42,7 +43,9 @@ export function FeedPage() {
 
           return (
             <div key={event.id} className={`feed-item feed-item--${event.type.toLowerCase()}`}>
+              {event.type === 'MONK' && <p className="monk-eyebrow">∞ UMA NOVA LENDA NO TEMPLO</p>}
               <p className="feed-item__message">{formatFeedMessage(event)}</p>
+              {event.type === 'MONK' && <p className="monk-feed-tribute">30 dias. Uma promessa cumprida. <Link to="/templo">Visitar o templo →</Link></p>}
               <span className="feed-item__time">{formatRelativeTime(event.createdAt)}</span>
             </div>
           )

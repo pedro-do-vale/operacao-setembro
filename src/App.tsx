@@ -10,6 +10,7 @@ import { RankingPage } from './pages/RankingPage'
 import { FeedPage } from './pages/FeedPage'
 import { GraveyardPage } from './pages/GraveyardPage'
 import { EvolutionGalleryPage } from './pages/EvolutionGalleryPage'
+import { MonkTemplePage } from './pages/MonkTemplePage'
 
 const basename = import.meta.env.VITE_BASE_PATH?.replace(/\/$/, '') || ''
 
@@ -33,6 +34,7 @@ export default function App() {
               <Route path="/feed" element={<FeedPage />} />
               <Route path="/cemiterio" element={<GraveyardPage />} />
               <Route path="/evolucao" element={<EvolutionGalleryPage />} />
+              <Route path="/templo" element={<MonkTemplePage />} />
               <Route path="/perfil" element={<Navigate to="/evolucao" replace />} />
             </Route>
           </Route>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { MonkEnergy } from '../components/MonkEnergy'
 import { AvatarRenderer } from '../components/AvatarRenderer'
 import { RANKS } from '../config/ranks'
 import { RANK_ART_BY_ID } from '../config/avatarArt'
@@ -45,6 +46,9 @@ export function EvolutionGalleryPage() {
               <div className="evolution-card__step">{String(index + 1).padStart(2, '0')}</div>
               <div className="evolution-card__art">
                 <div className="evolution-card__halo" />
+                {isMonk && (
+                  <MonkEnergy />
+                )}
                 <AvatarRenderer
                   avatarConfig={buildAvatarConfigForRank(rank.id, avatarBase)}
                   rankId={rank.id}
@@ -54,7 +58,9 @@ export function EvolutionGalleryPage() {
               </div>
               <div className="evolution-card__content">
                 <p className="evolution-card__days">
-                  DIAS {rank.minDays}–{rank.maxDays}
+                  {rank.minDays === rank.maxDays
+                    ? `DIA ${rank.minDays}`
+                    : `DIAS ${rank.minDays}–${rank.maxDays}`}
                 </p>
                 <h2>{rank.name.toUpperCase()}</h2>
                 <p>{rank.description}</p>

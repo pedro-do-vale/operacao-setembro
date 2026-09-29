@@ -1,4 +1,5 @@
 import { useCampaign } from '../contexts/CampaignContext'
+import { Link } from 'react-router-dom'
 import { AvatarRenderer } from '../components/AvatarRenderer'
 import { getRankById } from '../utils/ranks'
 
@@ -17,6 +18,7 @@ export function RankingPage() {
       </header>
 
       <div className="ranking-list">
+        <Link to="/templo" className="monk-temple-link"><span aria-hidden="true">∞</span><div><strong>TEMPLO DOS MONGES</strong><p>Conheça os que concluíram a travessia →</p></div></Link>
         {ranking.map((player, index) => {
           const rank = getRankById(player.currentRank)
           const isTop3 = index < 3

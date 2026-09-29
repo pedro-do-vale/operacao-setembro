@@ -27,8 +27,9 @@ describe('Rank calculation', () => {
     expect(getRankForDays(20).id).toBe('capitao')
   })
 
-  it('returns Monge for 29-30 days', () => {
-    expect(getRankForDays(29).id).toBe('monge')
+  it('keeps Rei through day 29 and grants Monge on day 30', () => {
+    expect(getRankForDays(28).id).toBe('rei')
+    expect(getRankForDays(29).id).toBe('rei')
     expect(getRankForDays(30).id).toBe('monge')
   })
 })
@@ -46,7 +47,13 @@ describe('Promotion', () => {
 
   it('calculates days until next rank', () => {
     expect(getDaysUntilNextRank(2)).toBe(1)
+    expect(getDaysUntilNextRank(29)).toBe(1)
     expect(getDaysUntilNextRank(30)).toBe(0)
+  })
+
+  it('promotes from Rei to Monge only on the 30th confirmed day', () => {
+    expect(isPromotion(28, 29)).toBe(false)
+    expect(isPromotion(29, 30)).toBe(true)
   })
 })
 
@@ -174,6 +181,69 @@ describe('Check-in rules', () => {
   it('fallen cannot check in', () => {
     const status: string = 'fallen'
     expect(status === 'alive').toBe(false)
+  })
+
+  it('keeps the player alive before 3 consecutive missed check-ins', async () => {
+    const { getCheckInAvailability, getConsecutiveMissedCheckInDays } = await import('../utils/checkIn')
+    const now = new Date('2026-09-06T15:00:00.000Z')
+    const params = {
+      personalStartDate: '2026-09-01',
+      lastConfirmedDate: '2026-09-02',
+      now,
+    }
+
+    expect(getConsecutiveMissedCheckInDays(params)).toBe(2)
+    expect(getCheckInAvailability(params)).toMatchObject({
+      canCheckIn: true,
+      checkInDate: '2026-09-03',
+      pendingCount: 3,
+    })
+  })
+
+  it('confirms Friday, Saturday and Sunday in order on Monday morning', async () => {
+    const { getCheckInAvailability } = await import('../utils/checkIn')
+    const now = new Date('2026-09-07T15:00:00.000Z')
+
+    expect(getCheckInAvailability({
+      personalStartDate: '2026-09-01',
+      lastConfirmedDate: '2026-09-03',
+      now,
+    })).toMatchObject({ checkInDate: '2026-09-04', pendingCount: 3 })
+    expect(getCheckInAvailability({
+      personalStartDate: '2026-09-01',
+      lastConfirmedDate: '2026-09-04',
+      now,
+    })).toMatchObject({ checkInDate: '2026-09-05', pendingCount: 2 })
+    expect(getCheckInAvailability({
+      personalStartDate: '2026-09-01',
+      lastConfirmedDate: '2026-09-05',
+      now,
+    })).toMatchObject({ checkInDate: '2026-09-06', pendingCount: 1 })
+  })
+
+  it('blocks check-in and sends the player to the cemetery at 3 missed days', async () => {
+    const { getCheckInAvailability, getConsecutiveMissedCheckInDays } = await import('../utils/checkIn')
+    const now = new Date('2026-09-07T15:00:00.000Z')
+    const params = {
+      personalStartDate: '2026-09-01',
+      lastConfirmedDate: '2026-09-02',
+      now,
+    }
+
+    expect(getConsecutiveMissedCheckInDays(params)).toBe(3)
+    expect(getCheckInAvailability(params)).toMatchObject({
+      canCheckIn: false,
+      reason: 'missed-limit',
+    })
+  })
+
+  it('counts missed days from the personal start when there is no confirmation yet', async () => {
+    const { getConsecutiveMissedCheckInDays } = await import('../utils/checkIn')
+    expect(getConsecutiveMissedCheckInDays({
+      personalStartDate: '2026-09-03',
+      lastConfirmedDate: null,
+      now: new Date('2026-09-07T15:00:00.000Z'),
+    })).toBe(3)
   })
 })
 
@@ -348,8 +418,20 @@ describe('Campaign join', () => {
 })
 
 describe('Monk achievement', () => {
-  it('monk status at 30 days', () => {
-    const days = 30
-    expect(getRankForDays(days).id).toBe('monge')
+  it('releases the final check-in only after the 30th day is complete', async () => {
+    const { getCheckInAvailability } = await import('../utils/checkIn')
+    const params = {
+      personalStartDate: '2026-09-01',
+      lastConfirmedDate: '2026-09-29',
+    }
+
+    expect(getCheckInAvailability({
+      ...params,
+      now: new Date('2026-09-30T15:00:00.000Z'),
+    }).canCheckIn).toBe(false)
+    expect(getCheckInAvailability({
+      ...params,
+      now: new Date('2026-10-01T15:00:00.000Z'),
+    })).toMatchObject({ canCheckIn: true, checkInDate: '2026-09-30' })
   })
 })

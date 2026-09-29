@@ -4,6 +4,7 @@ import {
   query,
   where,
   orderBy,
+  getDocs,
 } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage'
@@ -93,6 +94,13 @@ async function uploadSupportJpeg(path: string, imageFile: File): Promise<string>
   if (!storage || !auth?.currentUser) throw new Error('Firebase não configurado')
   await uploadBytes(storageRef(storage, path), compressed, { contentType: 'image/jpeg' })
   return path
+}
+
+export async function getSupportHistory(campaignId: string): Promise<SupportRequest[]> {
+  if (isDemoMode) return demoStore.getSupportHistory()
+  if (!db) throw new Error('Histórico indisponível. Tente novamente.')
+  const snapshot = await getDocs(collection(db, 'campaigns', campaignId, 'supportRequests'))
+  return snapshot.docs.map(doc => parseSupportRequest(doc.id, doc.data()))
 }
 
 export function subscribeToSupportRequests(

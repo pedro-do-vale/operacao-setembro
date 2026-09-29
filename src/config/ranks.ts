@@ -155,7 +155,7 @@ export const RANKS: RankDefinition[] = [
     id: 'rei',
     name: 'Rei',
     minDays: 27,
-    maxDays: 28,
+    maxDays: 29,
     icon: '👑',
     description: 'Coroa, manto e armadura real.',
     rarity: 'legendary',
@@ -172,7 +172,7 @@ export const RANKS: RankDefinition[] = [
   {
     id: 'monge',
     name: 'Monge ∞',
-    minDays: 29,
+    minDays: 30,
     maxDays: 30,
     icon: '∞',
     description: 'Transformação lendária. Você transcendeu.',

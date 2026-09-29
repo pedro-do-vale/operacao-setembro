@@ -4,6 +4,7 @@ import {
   query,
   orderBy,
   limit,
+  getDocs,
 } from 'firebase/firestore'
 import { db, isDemoMode } from '../lib/firebase'
 import type { FeedEvent } from '../types'
@@ -18,6 +19,14 @@ function parseFeedEvent(id: string, data: Record<string, unknown>): FeedEvent {
     data: (data.data as Record<string, unknown>) ?? {},
     createdAt: (data.createdAt as { toDate: () => Date })?.toDate?.() ?? new Date(),
   }
+}
+
+// The retrospective must include the whole campaign, not just the latest 50 posts.
+export async function getFeedHistory(campaignId: string): Promise<FeedEvent[]> {
+  if (isDemoMode) return demoStore.getFeed()
+  if (!db) throw new Error('Histórico indisponível. Tente novamente.')
+  const snapshot = await getDocs(collection(db, 'campaigns', campaignId, 'feed'))
+  return snapshot.docs.map(doc => parseFeedEvent(doc.id, doc.data()))
 }
 
 export function subscribeToFeed(

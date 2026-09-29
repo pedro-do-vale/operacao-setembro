@@ -12,8 +12,14 @@ import {
   isRegistrationOpen,
   isValidPersonalStartDate,
 } from '../../utils/campaignJoin'
-import { getCheckInAvailability, getJoinLastConfirmedDate } from '../../utils/checkIn'
-import { getYesterdayKey } from '../../utils/dates'
+import {
+  getCheckInAvailability,
+  getConsecutiveMissedCheckInDays,
+  getJoinLastConfirmedDate,
+  MAX_CONSECUTIVE_MISSED_CHECK_INS,
+} from '../../utils/checkIn'
+import { getYesterdayKey, shiftDateKey, parseDateKey } from '../../utils/dates'
+import { RANKS } from '../../config/ranks'
 
 const CAMPAIGN_ID = 'operacao-setembro-2026'
 
@@ -25,7 +31,7 @@ function makePlayer(
   status: 'alive' | 'fallen' | 'monk',
   opts: Partial<CampaignPlayer> = {}
 ): CampaignPlayer {
-  const rankId = opts.currentRank ?? (status === 'fallen' ? opts.rankAtDeath! : getRankIdForDays(daysSurvived, status))
+  const rankId = opts.currentRank ?? (status === 'fallen' ? opts.rankAtDeath! : getRankForDays(daysSurvived).id)
   const avatarConfig = buildAvatarConfigForRank(rankId, avatarBase)
   return {
     id,
@@ -51,20 +57,12 @@ function makePlayer(
   }
 }
 
-function getRankIdForDays(days: number, status: string): string {
-  const ranks = [
-    [0, 'soldado'], [3, 'cabo'], [5, '3-sargento'], [7, '2-sargento'], [9, '1-sargento'],
-    [11, 'subtenente'], [13, 'aspirante'], [15, '2-tenente'], [17, '1-tenente'], [19, 'capitao'],
-    [21, 'major'], [23, 'coronel'], [25, 'general'], [27, 'rei'], [29, 'monge'],
-  ]
-  if (status === 'monk') return 'monge'
-  for (let i = ranks.length - 1; i >= 0; i--) {
-    if (days >= (ranks[i][0] as number)) return ranks[i][1] as string
-  }
-  return 'soldado'
-}
-
 const players: CampaignPlayer[] = [
+  makePlayer('p15', 'PEREGRINO', 'base-a', 29, 'alive', {
+    personalStartDate: shiftDateKey(getYesterdayKey(), -29),
+    lastConfirmedDate: shiftDateKey(getYesterdayKey(), -1),
+    lastCheckIn: new Date(Date.now() - 86400000),
+  }),
   makePlayer('p1', 'PEDRÃO', 'base-a', 19, 'alive'),
   makePlayer('p2', 'BRUNÃO', 'base-b', 17, 'alive'),
   makePlayer('p3', 'PAULO', 'base-a', 15, 'alive'),
@@ -77,9 +75,21 @@ const players: CampaignPlayer[] = [
   makePlayer('p10', 'TIAGO', 'base-b', 20, 'fallen', { rankAtDeath: 'capitao', epitaph: 'Morri como Capitão.' }),
   makePlayer('p11', 'FELIPE', 'base-a', 26, 'fallen', { rankAtDeath: 'general', epitaph: 'Quase Monge.' }),
   makePlayer('p12', 'GUSTAVO', 'base-b', 5, 'fallen', { rankAtDeath: '3-sargento', epitaph: 'Não tankei.' }),
+  makePlayer('p13', 'ATRASADO', 'base-b', 10, 'alive', {
+    lastCheckIn: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+    lastConfirmedDate: shiftDateKey(getYesterdayKey(), -4),
+  }),
+  makePlayer('p14', 'RETARDATÁRIO', 'base-a', 10, 'alive', {
+    lastCheckIn: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    lastConfirmedDate: shiftDateKey(getYesterdayKey(), -3),
+  }),
 ]
 
 const feedEvents: FeedEvent[] = [
+  ...RANKS.filter(rank => rank.minDays > 0 && rank.minDays < 30).map(rank => {
+    const date = shiftDateKey(players.find(player => player.id === 'p15')!.personalStartDate!, rank.minDays - 1)
+    return { id: `journey-p15-${rank.id}`, type: 'PROMOTION' as const, playerId: 'p15', nickname: 'PEREGRINO', data: { rank: rank.id, date }, createdAt: parseDateKey(shiftDateKey(date, 1)) }
+  }),
   { id: 'f1', type: 'CHECK_IN', playerId: 'p1', nickname: 'PEDRÃO', data: { day: 19 }, createdAt: new Date() },
   { id: 'f2', type: 'PROMOTION', playerId: 'p2', nickname: 'BRUNÃO', data: { rank: '1º Tenente' }, createdAt: new Date(Date.now() - 3600000) },
   { id: 'f3', type: 'FALLEN', playerId: 'p9', nickname: 'JOÃO', data: { day: 8, rank: '2º Sargento' }, createdAt: new Date(Date.now() - 7200000) },
@@ -90,6 +100,17 @@ const feedEvents: FeedEvent[] = [
 ]
 
 const supportRequests: SupportRequest[] = [
+  ...[7, 16, 23].map((day, index) => ({
+    id: `journey-support-${day}`,
+    playerId: index === 1 ? 'p15' : 'p2',
+    nickname: index === 1 ? 'PEREGRINO' : 'BRUNÃO',
+    rank: getRankForDays(day).id,
+    daysSurvived: day,
+    createdAt: parseDateKey(shiftDateKey(players.find(player => player.id === 'p15')!.personalStartDate!, day - 1)),
+    status: 'closed' as const,
+    supporterCount: [3, 5, 2][index],
+    message: ['Hoje foi difícil. Preciso de reforços.', 'Cheguei até aqui com vocês. Me ajudem a continuar.', 'Falta pouco. Vamos terminar juntos.'][index],
+  })),
   {
     id: 'sr1',
     playerId: 'p1',
@@ -137,6 +158,8 @@ const campaign: Campaign = {
 
 let currentPlayerId: string | null = 'p1'
 let lastSupportRequestAt: Date | null = new Date(Date.now() - 8 * 3600000)
+const initialFeedIds = new Set(feedEvents.map(event => event.id))
+const initialSupportIds = new Set(supportRequests.map(request => request.id))
 
 const playerListeners = new Set<() => void>()
 const feedListeners = new Set<() => void>()
@@ -146,7 +169,68 @@ function notifyPlayers() { playerListeners.forEach((cb) => cb()) }
 function notifyFeed() { feedListeners.forEach((cb) => cb()) }
 function notifySupport() { supportListeners.forEach((cb) => cb()) }
 
+function moveOverdueDemoPlayerToGraveyard(player: CampaignPlayer): boolean {
+  const missedDays = getConsecutiveMissedCheckInDays({
+    personalStartDate: player.personalStartDate,
+    lastConfirmedDate: player.lastConfirmedDate,
+  })
+  if (player.status !== 'alive' || missedDays < MAX_CONSECUTIVE_MISSED_CHECK_INS) {
+    return false
+  }
+
+  player.status = 'fallen'
+  player.fallenAt = new Date()
+  player.fallenDay = player.daysSurvived
+  player.rankAtDeath = player.currentRank
+  player.avatarSnapshotAtDeath = { ...player.avatarConfig }
+  player.epitaph = null
+
+  feedEvents.unshift({
+    id: `f-inactive-${player.id}`,
+    type: 'FALLEN',
+    playerId: player.id,
+    nickname: player.nickname,
+    data: {
+      day: player.fallenDay,
+      rank: player.rankAtDeath,
+      reason: 'MISSED_CHECK_INS',
+      missedDays,
+    },
+    createdAt: new Date(),
+  })
+
+  notifyPlayers()
+  notifyFeed()
+  return true
+}
+
 export const demoStore = {
+  resetFinalBattle: (userId: string) => {
+    const index = players.findIndex(player => player.userId === userId)
+    if (index < 0) return false
+    const previous = players[index]
+    players[index] = makePlayer(previous.id, previous.nickname, previous.avatarBase, 29, 'alive', {
+      userId,
+      personalStartDate: shiftDateKey(getYesterdayKey(), -29),
+      lastConfirmedDate: shiftDateKey(getYesterdayKey(), -1),
+      lastCheckIn: new Date(Date.now() - 86400000),
+    })
+    currentPlayerId = previous.id
+    lastSupportRequestAt = null
+    for (let i = feedEvents.length - 1; i >= 0; i--) {
+      if (feedEvents[i].playerId === previous.id && !initialFeedIds.has(feedEvents[i].id)) feedEvents.splice(i, 1)
+    }
+    for (let i = supportRequests.length - 1; i >= 0; i--) {
+      if (supportRequests[i].playerId === previous.id && !initialSupportIds.has(supportRequests[i].id)) {
+        delete supporters[supportRequests[i].id]
+        supportRequests.splice(i, 1)
+      }
+    }
+    notifyPlayers()
+    notifyFeed()
+    notifySupport()
+    return true
+  },
   getCampaign: () => campaign,
   getCampaignId: () => CAMPAIGN_ID,
 
@@ -156,10 +240,15 @@ export const demoStore = {
 
   getPlayer: (id: string) => players.find((p) => p.id === id) ?? null,
   getCurrentPlayer: () => (currentPlayerId ? players.find((p) => p.id === currentPlayerId) ?? null : null),
-  setCurrentPlayer: (id: string) => { currentPlayerId = id },
+  setCurrentPlayer: (id: string) => {
+    currentPlayerId = id
+    const player = players.find((candidate) => candidate.id === id)
+    if (player) moveOverdueDemoPlayerToGraveyard(player)
+  },
 
   getFeed: () => [...feedEvents].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
   getSupportRequests: () => supportRequests.filter((r) => r.status === 'active'),
+  getSupportHistory: () => [...supportRequests],
   getSupporters: (requestId: string) => supporters[requestId] ?? [],
 
   subscribePlayers: (cb: () => void) => {
@@ -213,25 +302,33 @@ export const demoStore = {
   performCheckIn: (playerId: string) => {
     const player = players.find((p) => p.id === playerId)
     if (!player || player.status !== 'alive') throw new Error('Check-in não permitido')
-    const { yesterday } = (() => {
-      const availability = getCheckInAvailability({
-        personalStartDate: player.personalStartDate,
-        lastConfirmedDate: player.lastConfirmedDate,
-      })
-      if (availability.reason === 'too-early') {
-        throw new Error('Ainda não há um dia completo para confirmar')
-      }
-      if (availability.reason === 'already-confirmed') {
-        throw new Error('Check-in de ontem já realizado')
-      }
-      return availability
-    })()
+    if (getConsecutiveMissedCheckInDays({
+      personalStartDate: player.personalStartDate,
+      lastConfirmedDate: player.lastConfirmedDate,
+    }) >= MAX_CONSECUTIVE_MISSED_CHECK_INS) {
+      moveOverdueDemoPlayerToGraveyard(player)
+      throw new Error('Você ficou 3 dias seguidos sem check-in e foi para o cemitério')
+    }
+    const availability = getCheckInAvailability({
+      personalStartDate: player.personalStartDate,
+      lastConfirmedDate: player.lastConfirmedDate,
+    })
+    if (availability.reason === 'too-early') {
+      throw new Error('Ainda não há um dia completo para confirmar')
+    }
+    if (availability.reason === 'already-confirmed') {
+      throw new Error('Check-in de ontem já realizado')
+    }
+    if (!availability.checkInDate) {
+      throw new Error('Check-in não permitido')
+    }
+    const checkInDate = availability.checkInDate
 
     const oldDays = player.daysSurvived
     player.daysSurvived += 1
     player.lastCheckIn = new Date()
-    player.lastConfirmedDate = yesterday
-    const newRank = getRankIdForDays(player.daysSurvived, player.status)
+    player.lastConfirmedDate = checkInDate
+    const newRank = getRankForDays(player.daysSurvived).id
     const promoted = newRank !== player.currentRank
     player.currentRank = newRank
     player.avatarConfig = buildAvatarConfigForRank(newRank, player.avatarBase)
@@ -242,12 +339,12 @@ export const demoStore = {
     } else if (promoted) {
       feedEvents.unshift({ id: `f-${Date.now()}`, type: 'PROMOTION', playerId, nickname: player.nickname, data: { rank: newRank, oldDays, newDays: player.daysSurvived }, createdAt: new Date() })
     } else {
-      feedEvents.unshift({ id: `f-${Date.now()}`, type: 'CHECK_IN', playerId, nickname: player.nickname, data: { day: player.daysSurvived }, createdAt: new Date() })
+      feedEvents.unshift({ id: `f-${Date.now()}`, type: 'CHECK_IN', playerId, nickname: player.nickname, data: { day: player.daysSurvived, date: checkInDate }, createdAt: new Date() })
     }
 
     notifyPlayers()
     notifyFeed()
-    return { player, promoted, newRank: promoted ? newRank : null }
+    return { player, promoted, newRank: promoted ? newRank : null, confirmedDate: checkInDate }
   },
 
   declareFall: (playerId: string) => {
@@ -292,7 +389,7 @@ export const demoStore = {
       id: options.id ?? `sr-${Date.now()}`,
       playerId,
       nickname: player.nickname,
-      rank: getRankIdForDays(player.daysSurvived, player.status),
+      rank: getRankForDays(player.daysSurvived).id,
       daysSurvived: player.daysSurvived,
       createdAt: new Date(),
       status: 'active',

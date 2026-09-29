@@ -81,7 +81,7 @@ export function LoginPage() {
                 className="quick-message-btn"
                 onClick={() => { setEmail(acc.email); setPassword('demo123') }}
               >
-                {acc.nickname}
+                {acc.label}
               </button>
             ))}
           </div>

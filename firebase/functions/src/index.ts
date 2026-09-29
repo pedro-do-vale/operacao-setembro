@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin'
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
+import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { FieldValue, Timestamp } from 'firebase-admin/firestore'
 
 admin.initializeApp()
@@ -19,8 +20,8 @@ const RANKS = [
   { id: 'major', minDays: 21, maxDays: 22 },
   { id: 'coronel', minDays: 23, maxDays: 24 },
   { id: 'general', minDays: 25, maxDays: 26 },
-  { id: 'rei', minDays: 27, maxDays: 28 },
-  { id: 'monge', minDays: 29, maxDays: 30 },
+  { id: 'rei', minDays: 27, maxDays: 29 },
+  { id: 'monge', minDays: 30, maxDays: 30 },
 ]
 
 const RANK_AVATAR_CONFIG: Record<string, Record<string, unknown>> = {
@@ -48,6 +49,7 @@ const SUPPORT_REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/
 const DEFAULT_REGISTRATION_DEADLINE = '2026-09-04'
 const DEFAULT_CAMPAIGN_ID = 'operacao-setembro-2026'
 const REPAIR_ALLOWLIST = ['pedroduartedovale@gmail.com']
+const MAX_CONSECUTIVE_MISSED_CHECK_INS = 3
 
 function getRankForDays(days: number) {
   return RANKS.find((r) => days >= r.minDays && days <= r.maxDays) ?? RANKS[0]
@@ -80,6 +82,30 @@ function shiftDateKey(dateKey: string, days: number): string {
   const m = String(shifted.getUTCMonth() + 1).padStart(2, '0')
   const d = String(shifted.getUTCDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
+}
+
+function getConsecutiveMissedCheckInDays(
+  personalStartDate: string,
+  lastConfirmedDate: string | null | undefined,
+  referenceDate = new Date()
+): number {
+  const yesterday = shiftDateKey(formatDateKey(referenceDate), -1)
+  const confirmationBaseline = lastConfirmedDate ?? shiftDateKey(personalStartDate, -1)
+  // Yesterday can still be confirmed throughout today, so it is not a completed miss yet.
+  return Math.max(
+    0,
+    dateKeyToDayNumber(yesterday) - dateKeyToDayNumber(confirmationBaseline) - 1
+  )
+}
+
+function getFallenUpdates(player: Record<string, unknown>) {
+  return {
+    status: 'fallen',
+    fallenAt: FieldValue.serverTimestamp(),
+    fallenDay: player.daysSurvived,
+    rankAtDeath: player.currentRank,
+    avatarSnapshotAtDeath: player.avatarConfig,
+  }
 }
 
 function dateKeysInclusive(fromKey: string, toKey: string): string[] {
@@ -269,7 +295,6 @@ export const performCheckIn = onCall(async (request) => {
   const uid = request.auth.uid
   const playerRef = db.collection('campaigns').doc(campaignId).collection('players').doc(uid)
   const yesterday = shiftDateKey(formatDateKey(new Date()), -1)
-  const checkinRef = playerRef.collection('checkins').doc(yesterday)
 
   const result = await db.runTransaction(async (tx) => {
     const playerSnap = await tx.get(playerRef)
@@ -279,15 +304,31 @@ export const performCheckIn = onCall(async (request) => {
     if (player.status !== 'alive') throw new HttpsError('failed-precondition', 'Jogador não está vivo')
 
     const personalStart = player.personalStartDate as string | undefined
+    if (personalStart && getConsecutiveMissedCheckInDays(
+      personalStart,
+      player.lastConfirmedDate as string | null | undefined
+    ) >= MAX_CONSECUTIVE_MISSED_CHECK_INS) {
+      const updates = getFallenUpdates(player)
+      tx.update(playerRef, updates)
+      return {
+        fallenForMissingCheckIns: true as const,
+        nickname: player.nickname as string,
+        fallenDay: player.daysSurvived as number,
+        rankAtDeath: player.currentRank as string,
+      }
+    }
     if (!personalStart || yesterday < personalStart) {
       throw new HttpsError('failed-precondition', 'Ainda não há um dia completo para confirmar')
     }
-    if ((player.lastConfirmedDate as string | null | undefined) && (player.lastConfirmedDate as string) >= yesterday) {
+    const lastConfirmedDate = player.lastConfirmedDate as string | null | undefined
+    const checkInDate = lastConfirmedDate ? shiftDateKey(lastConfirmedDate, 1) : personalStart
+    if (checkInDate > yesterday) {
       throw new HttpsError('already-exists', 'Check-in de ontem já realizado')
     }
 
+    const checkinRef = playerRef.collection('checkins').doc(checkInDate)
     const checkinSnap = await tx.get(checkinRef)
-    if (checkinSnap.exists) throw new HttpsError('already-exists', 'Check-in de ontem já realizado')
+    if (checkinSnap.exists) throw new HttpsError('already-exists', 'Check-in desta data já realizado')
 
     const oldDays = player.daysSurvived as number
     const newDays = oldDays + 1
@@ -304,7 +345,7 @@ export const performCheckIn = onCall(async (request) => {
       daysSurvived: newDays,
       currentRank: newRank.id,
       avatarConfig,
-      lastConfirmedDate: yesterday,
+      lastConfirmedDate: checkInDate,
       lastCheckIn: FieldValue.serverTimestamp(),
     }
 
@@ -314,21 +355,37 @@ export const performCheckIn = onCall(async (request) => {
       updates.status = 'monk'
     }
 
-    tx.set(checkinRef, { date: yesterday, createdAt: FieldValue.serverTimestamp() })
+    tx.set(checkinRef, { date: checkInDate, createdAt: FieldValue.serverTimestamp() })
     tx.update(playerRef, updates)
 
-    return { player: { ...player, ...updates, daysSurvived: newDays, currentRank: newRank.id, status: newStatus }, promoted, newRank: promoted ? newRank.id : null, nickname: player.nickname, newStatus }
+    return { fallenForMissingCheckIns: false as const, player: { ...player, ...updates, daysSurvived: newDays, currentRank: newRank.id, status: newStatus }, promoted, newRank: promoted ? newRank.id : null, nickname: player.nickname, newStatus, confirmedDate: checkInDate }
   })
+
+  if (result.fallenForMissingCheckIns) {
+    await createFeedEvent(campaignId, 'FALLEN', uid, result.nickname, {
+      day: result.fallenDay,
+      rank: result.rankAtDeath,
+      reason: 'MISSED_CHECK_INS',
+      missedDays: MAX_CONSECUTIVE_MISSED_CHECK_INS,
+    })
+    throw new HttpsError(
+      'failed-precondition',
+      'Você ficou 3 dias seguidos sem check-in e foi para o cemitério'
+    )
+  }
 
   if (result.newStatus === 'monk') {
     await createFeedEvent(campaignId, 'MONK', uid, result.nickname)
   } else if (result.promoted) {
     await createFeedEvent(campaignId, 'PROMOTION', uid, result.nickname, { rank: result.newRank })
   } else {
-    await createFeedEvent(campaignId, 'CHECK_IN', uid, result.nickname, { day: (result.player as { daysSurvived: number }).daysSurvived })
+    await createFeedEvent(campaignId, 'CHECK_IN', uid, result.nickname, {
+      day: (result.player as { daysSurvived: number }).daysSurvived,
+      date: result.confirmedDate,
+    })
   }
 
-  return { userId: uid, player: result.player, promoted: result.promoted, newRank: result.newRank }
+  return { userId: uid, player: result.player, promoted: result.promoted, newRank: result.newRank, confirmedDate: result.confirmedDate }
 })
 
 export const declareFall = onCall(async (request) => {
@@ -345,13 +402,7 @@ export const declareFall = onCall(async (request) => {
     const player = playerSnap.data()!
     if (player.status !== 'alive') throw new HttpsError('failed-precondition', 'Jogador já caiu')
 
-    const updates = {
-      status: 'fallen',
-      fallenAt: FieldValue.serverTimestamp(),
-      fallenDay: player.daysSurvived,
-      rankAtDeath: player.currentRank,
-      avatarSnapshotAtDeath: player.avatarConfig,
-    }
+    const updates = getFallenUpdates(player)
 
     tx.update(playerRef, updates)
     return { ...player, ...updates, nickname: player.nickname }
@@ -364,6 +415,62 @@ export const declareFall = onCall(async (request) => {
 
   return { userId: uid, player: result }
 })
+
+export const moveInactivePlayersToGraveyard = onSchedule(
+  {
+    schedule: '5 0 * * *',
+    timeZone: 'America/Sao_Paulo',
+  },
+  async () => {
+    const campaignsSnap = await db.collection('campaigns').get()
+    const now = new Date()
+
+    for (const campaignDoc of campaignsSnap.docs) {
+      if (campaignDoc.get('status') !== 'active') continue
+
+      const playersSnap = await campaignDoc.ref.collection('players')
+        .where('status', '==', 'alive')
+        .get()
+
+      for (const playerDoc of playersSnap.docs) {
+        const result = await db.runTransaction(async (tx) => {
+          const freshSnap = await tx.get(playerDoc.ref)
+          if (!freshSnap.exists) return null
+
+          const player = freshSnap.data()!
+          if (player.status !== 'alive') return null
+
+          const personalStartDate = player.personalStartDate as string | undefined
+          if (!personalStartDate) return null
+
+          const missedDays = getConsecutiveMissedCheckInDays(
+            personalStartDate,
+            player.lastConfirmedDate as string | null | undefined,
+            now
+          )
+          if (missedDays < MAX_CONSECUTIVE_MISSED_CHECK_INS) return null
+
+          tx.update(playerDoc.ref, getFallenUpdates(player))
+          return {
+            nickname: player.nickname as string,
+            fallenDay: player.daysSurvived as number,
+            rankAtDeath: player.currentRank as string,
+            missedDays,
+          }
+        })
+
+        if (result) {
+          await createFeedEvent(campaignDoc.id, 'FALLEN', playerDoc.id, result.nickname, {
+            day: result.fallenDay,
+            rank: result.rankAtDeath,
+            reason: 'MISSED_CHECK_INS',
+            missedDays: result.missedDays,
+          })
+        }
+      }
+    }
+  }
+)
 
 export const createSupportRequest = onCall(async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Não autenticado')

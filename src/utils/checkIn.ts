@@ -1,15 +1,39 @@
 import {
+  dateKeyToDayNumber,
   dateKeysInclusive,
   getYesterdayKey,
   shiftDateKey,
 } from './dates'
 
-export type CheckInBlockReason = 'ok' | 'too-early' | 'already-confirmed'
+export const MAX_CONSECUTIVE_MISSED_CHECK_INS = 3
+
+export type CheckInBlockReason = 'ok' | 'too-early' | 'already-confirmed' | 'missed-limit'
 
 export interface CheckInAvailability {
   yesterday: string
+  checkInDate: string | null
+  pendingCount: number
   canCheckIn: boolean
   reason: CheckInBlockReason
+}
+
+export function getConsecutiveMissedCheckInDays(params: {
+  personalStartDate: string | null
+  lastConfirmedDate: string | null
+  now?: Date
+}): number {
+  if (!params.personalStartDate) return 0
+
+  const yesterday = getYesterdayKey(params.now)
+  const confirmationBaseline = params.lastConfirmedDate
+    ?? shiftDateKey(params.personalStartDate, -1)
+
+  // O check-in de uma data fica disponível durante todo o dia seguinte.
+  // Por isso, ontem ainda é uma oportunidade aberta, não uma ausência concluída.
+  return Math.max(
+    0,
+    dateKeyToDayNumber(yesterday) - dateKeyToDayNumber(confirmationBaseline) - 1,
+  )
 }
 
 export function getJoinLastConfirmedDate(
@@ -27,12 +51,22 @@ export function getCheckInAvailability(params: {
 }): CheckInAvailability {
   const yesterday = getYesterdayKey(params.now)
   if (!params.personalStartDate || yesterday < params.personalStartDate) {
-    return { yesterday, canCheckIn: false, reason: 'too-early' }
+    return { yesterday, checkInDate: null, pendingCount: 0, canCheckIn: false, reason: 'too-early' }
   }
-  if ((params.lastConfirmedDate ?? '') >= yesterday) {
-    return { yesterday, canCheckIn: false, reason: 'already-confirmed' }
+  if (getConsecutiveMissedCheckInDays(params) >= MAX_CONSECUTIVE_MISSED_CHECK_INS) {
+    return { yesterday, checkInDate: null, pendingCount: 0, canCheckIn: false, reason: 'missed-limit' }
   }
-  return { yesterday, canCheckIn: true, reason: 'ok' }
+
+  const checkInDate = params.lastConfirmedDate
+    ? shiftDateKey(params.lastConfirmedDate, 1)
+    : params.personalStartDate
+
+  if (checkInDate > yesterday) {
+    return { yesterday, checkInDate: null, pendingCount: 0, canCheckIn: false, reason: 'already-confirmed' }
+  }
+
+  const pendingCount = dateKeyToDayNumber(yesterday) - dateKeyToDayNumber(checkInDate) + 1
+  return { yesterday, checkInDate, pendingCount, canCheckIn: true, reason: 'ok' }
 }
 
 export function remapTodayCheckinIds(
@@ -83,6 +117,9 @@ export function confirmYesterdayCheckIn(params: {
   if (availability.reason === 'already-confirmed') {
     throw new Error('Check-in de ontem já realizado')
   }
-  return { yesterday: availability.yesterday }
+  if (availability.reason === 'missed-limit' || !availability.checkInDate) {
+    throw new Error('Limite de 3 dias sem check-in atingido')
+  }
+  return { yesterday: availability.checkInDate }
 }
 

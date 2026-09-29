@@ -172,6 +172,7 @@ export async function performCheckIn(campaignId: string): Promise<{
   player: CampaignPlayer
   promoted: boolean
   newRank: string | null
+  confirmedDate: string
 }> {
   if (isDemoMode) {
     const player = demoStore.getCurrentPlayer()
@@ -187,6 +188,7 @@ export async function performCheckIn(campaignId: string): Promise<{
     player: parsePlayer(data.userId as string, data.player as Record<string, unknown>),
     promoted: data.promoted as boolean,
     newRank: (data.newRank as string) ?? null,
+    confirmedDate: data.confirmedDate as string,
   }
 }
 

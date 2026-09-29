@@ -150,6 +150,7 @@ img {
 @media (min-width: 768px) {
   .app-layout {
     padding-bottom: 0;
+    padding-left: var(--sidebar-width);
   }
 
   .bottom-nav {
@@ -212,7 +213,7 @@ img {
   }
 
   .app-layout__main {
-    margin-left: var(--sidebar-width);
+    margin: 0 auto;
     max-width: 720px;
     padding: 2rem;
   }
@@ -397,6 +398,23 @@ img {
 }
 
 /* Battle */
+.battle-page {
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100dvh - var(--nav-height) - 2rem);
+}
+
+.battle-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(7, 8, 10, 0.58) 0%, rgba(7, 8, 10, 0.72) 48%, rgba(7, 8, 10, 0.91) 100%),
+    url('../assets/backgrounds/battle-cinematic-mobile.webp') center top / cover no-repeat;
+}
+
 .battle-page__header {
   position: relative;
   text-align: center;
@@ -408,17 +426,20 @@ img {
   font-size: 1.1rem;
   letter-spacing: 0.12em;
   color: var(--color-gold);
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.95);
 }
 
 .battle-page__day {
   font-size: 1.5rem;
   font-weight: 700;
   margin: 0.5rem 0;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.95);
 }
 
 .battle-page__survivors {
-  color: var(--color-text-muted);
+  color: #b3b0aa;
   font-size: 0.85rem;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.95);
 }
 
 .battle-actions {
@@ -429,7 +450,21 @@ img {
   margin-bottom: 2rem;
   border: 1px solid rgba(255, 255, 255, 0.055);
   border-radius: calc(var(--radius) + 4px);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.008));
+  background: linear-gradient(180deg, rgba(16, 16, 19, 0.82), rgba(10, 10, 12, 0.72));
+  backdrop-filter: blur(8px);
+}
+
+@media (min-width: 768px) {
+  .battle-page {
+    min-height: calc(100dvh - 4rem);
+  }
+
+  .battle-page::before {
+    left: var(--sidebar-width);
+    background:
+      linear-gradient(180deg, rgba(7, 8, 10, 0.54) 0%, rgba(7, 8, 10, 0.7) 50%, rgba(7, 8, 10, 0.91) 100%),
+      url('../assets/backgrounds/battle-cinematic-desktop.webp') center center / cover no-repeat;
+  }
 }
 
 .battle-support-alerts {
@@ -966,6 +1001,33 @@ img {
 }
 
 /* Ranking */
+.ranking-page {
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100dvh - var(--nav-height) - 2rem);
+}
+
+.ranking-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(7, 8, 10, 0.52) 0%, rgba(7, 8, 10, 0.68) 46%, rgba(7, 8, 10, 0.9) 100%),
+    url('../assets/backgrounds/ranking-arena-mobile.webp') center top / cover no-repeat;
+}
+
+.ranking-page .page-header h1 {
+  color: #f0d177;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.95);
+}
+
+.ranking-page .page-header__subtitle {
+  color: #b7b2a8;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.95);
+}
+
 .ranking-list {
   display: flex;
   flex-direction: column;
@@ -977,15 +1039,29 @@ img {
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border);
+  background: rgba(20, 20, 24, 0.9);
+  border: 1px solid rgba(86, 82, 72, 0.5);
   border-radius: var(--radius-sm);
+  backdrop-filter: blur(9px);
 }
 
-.ranking-item--top1 { border-color: #ffd700; background: linear-gradient(135deg, #2a2410 0%, var(--color-bg-card) 100%); }
+.ranking-item--top1 { border-color: #ffd700; background: linear-gradient(135deg, rgba(42, 36, 16, 0.94) 0%, rgba(20, 20, 24, 0.9) 100%); }
 .ranking-item--top2 { border-color: #c0c0c0; }
 .ranking-item--top3 { border-color: #cd7f32; }
 .ranking-item--monk { border-color: #a0e8ff; box-shadow: 0 0 20px rgba(160, 232, 255, 0.15); }
+
+@media (min-width: 768px) {
+  .ranking-page {
+    min-height: calc(100dvh - 4rem);
+  }
+
+  .ranking-page::before {
+    left: var(--sidebar-width);
+    background:
+      linear-gradient(180deg, rgba(7, 8, 10, 0.48) 0%, rgba(7, 8, 10, 0.65) 48%, rgba(7, 8, 10, 0.88) 100%),
+      url('../assets/backgrounds/ranking-arena-desktop.webp') center center / cover no-repeat;
+  }
+}
 
 .ranking-item__position {
   font-size: 1.25rem;
@@ -1010,6 +1086,33 @@ img {
 }
 
 /* Feed */
+.feed-page {
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100dvh - var(--nav-height) - 2rem);
+}
+
+.feed-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(7, 8, 10, 0.5) 0%, rgba(7, 8, 10, 0.7) 48%, rgba(7, 8, 10, 0.92) 100%),
+    url('../assets/backgrounds/feed-command-center-mobile.webp') center top / cover no-repeat;
+}
+
+.feed-page .page-header h1 {
+  color: #e7c46d;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.95);
+}
+
+.feed-page .page-header__subtitle {
+  color: #bbb4a7;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.95);
+}
+
 .feed-list {
   display: flex;
   flex-direction: column;
@@ -1018,10 +1121,11 @@ img {
 
 .feed-item {
   padding: 1rem;
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border);
+  background: rgba(20, 20, 24, 0.9);
+  border: 1px solid rgba(88, 80, 66, 0.52);
   border-radius: var(--radius-sm);
   border-left: 3px solid var(--color-border);
+  backdrop-filter: blur(9px);
 }
 
 .feed-item--check_in { border-left-color: var(--color-green-bright); }
@@ -1039,6 +1143,29 @@ img {
   color: var(--color-text-muted);
   margin-top: 0.25rem;
   display: block;
+}
+
+.feed-page .support-card {
+  background: rgba(20, 20, 24, 0.91);
+  backdrop-filter: blur(9px);
+}
+
+.feed-page .empty-state {
+  color: #bbb4a7;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.95);
+}
+
+@media (min-width: 768px) {
+  .feed-page {
+    min-height: calc(100dvh - 4rem);
+  }
+
+  .feed-page::before {
+    left: var(--sidebar-width);
+    background:
+      linear-gradient(180deg, rgba(7, 8, 10, 0.46) 0%, rgba(7, 8, 10, 0.65) 48%, rgba(7, 8, 10, 0.89) 100%),
+      url('../assets/backgrounds/feed-command-center-desktop.webp') center center / cover no-repeat;
+  }
 }
 
 /* Support */
@@ -1213,8 +1340,31 @@ img {
 }
 
 /* Graveyard */
+.graveyard-page {
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100dvh - var(--nav-height) - 2rem);
+}
+
+.graveyard-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(7, 10, 13, 0.5) 0%, rgba(7, 9, 12, 0.76) 48%, rgba(7, 8, 10, 0.9) 100%),
+    url('../assets/backgrounds/graveyard-cinematic-mobile.webp') center top / cover no-repeat;
+}
+
 .graveyard-header h1 {
-  color: var(--color-text-muted);
+  color: #d5d8dc;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.95);
+}
+
+.graveyard-header .page-header__subtitle {
+  color: #aeb4bb;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.95);
 }
 
 .graveyard-stats {
@@ -1225,11 +1375,12 @@ img {
 }
 
 .graveyard-stat {
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border);
+  background: rgba(20, 20, 24, 0.88);
+  border: 1px solid rgba(106, 111, 119, 0.34);
   border-radius: var(--radius-sm);
   padding: 0.75rem;
   text-align: center;
+  backdrop-filter: blur(8px);
 }
 
 .graveyard-stat span {
@@ -1256,11 +1407,12 @@ img {
 
 .filter-btn {
   padding: 0.4rem 0.75rem;
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border);
+  background: rgba(20, 20, 24, 0.9);
+  border: 1px solid rgba(106, 111, 119, 0.38);
   border-radius: 20px;
   font-size: 0.75rem;
   color: var(--color-text-muted);
+  backdrop-filter: blur(8px);
 }
 
 .filter-btn--active {
@@ -1275,12 +1427,26 @@ img {
 }
 
 .tombstone {
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border);
+  background: rgba(20, 20, 24, 0.9);
+  border: 1px solid rgba(106, 111, 119, 0.36);
   border-radius: var(--radius);
   padding: 1rem;
   text-align: center;
   transition: all 0.3s;
+  backdrop-filter: blur(10px);
+}
+
+@media (min-width: 768px) {
+  .graveyard-page {
+    min-height: calc(100dvh - 4rem);
+  }
+
+  .graveyard-page::before {
+    left: var(--sidebar-width);
+    background:
+      linear-gradient(180deg, rgba(7, 10, 13, 0.48) 0%, rgba(7, 9, 12, 0.72) 52%, rgba(7, 8, 10, 0.9) 100%),
+      url('../assets/backgrounds/graveyard-cinematic-desktop.webp') center center / cover no-repeat;
+  }
 }
 
 .tombstone--highlighted {
@@ -1724,6 +1890,126 @@ img {
 .evolution-card--monk .evolution-card__art .avatar-renderer {
   width: 292px;
   height: 292px;
+}
+
+.evolution-card--monk .evolution-card__art .avatar-renderer,
+.monk-ceremony__portrait--energized .avatar-renderer {
+  animation: monk-levitate 5s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+.evolution-card--monk {
+  isolation: isolate;
+  --rank-glow: rgba(255, 212, 126, 0.25);
+  border-color: rgba(255, 221, 153, 0.65);
+  box-shadow: 0 0 22px #eeb95a20, 0 20px 45px #0006;
+}
+
+.evolution-card--monk::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(from var(--monk-orbit), transparent 55%, #e7ac4940 75%, #ffd98c 92%, #fff8df 97%, transparent);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: monk-orbit 7s linear infinite;
+}
+
+@property --monk-orbit {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.evolution-card--monk .evolution-card__halo,
+.monk-ceremony__portrait--energized .evolution-card__halo {
+  bottom: 24px;
+  width: 260px;
+  border-color: #ffe5ac45;
+  background: radial-gradient(ellipse, #fff6d76b, #efbd5438 38%, transparent 70%);
+  box-shadow: 0 0 35px #eabe5838, inset 0 0 32px #ffdf8833;
+  animation: monk-breathe 5s ease-in-out infinite;
+  transition: filter 0.5s;
+}
+
+.monk-energy {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.monk-energy__infinity {
+  position: absolute;
+  width: 92%;
+  left: 4%;
+  top: 8%;
+  stroke: #ffe9ae;
+  stroke-width: 1.5;
+  opacity: 0.3;
+  filter: drop-shadow(0 0 5px #ffc95e);
+  transition: opacity 0.5s, filter 0.5s;
+}
+
+.monk-energy__particle {
+  position: absolute;
+  left: var(--particle-x);
+  bottom: 12px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #fff0c4;
+  box-shadow: 0 0 8px 2px #f7c76399;
+  opacity: 0;
+  animation: monk-rise var(--particle-duration) var(--particle-delay) linear infinite;
+}
+
+.evolution-card--monk .evolution-card__art::after,
+.monk-ceremony__portrait--energized::after {
+  animation: monk-shadow 5s ease-in-out infinite;
+}
+
+.evolution-card--monk:hover .monk-energy__infinity,
+.monk-ceremony__portrait--energized:hover .monk-energy__infinity {
+  opacity: 0.95;
+  filter: drop-shadow(0 0 9px #ffd36e);
+}
+
+.evolution-card--monk:hover .evolution-card__halo,
+.monk-ceremony__portrait--energized:hover .evolution-card__halo { filter: brightness(1.5); }
+
+@keyframes monk-orbit { to { --monk-orbit: 360deg; } }
+@keyframes monk-levitate {
+  0%, 100% { transform: translateY(-2px) scale(0.94); }
+  50% { transform: translateY(-12px) scale(0.94); }
+}
+@keyframes monk-breathe {
+  0%, 100% { transform: scale(0.9); opacity: 0.6; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+@keyframes monk-shadow {
+  0%, 100% { transform: scaleX(1); opacity: 0.8; }
+  50% { transform: scaleX(0.75); opacity: 0.4; }
+}
+@keyframes monk-rise {
+  0% { transform: translate(0, 0) scale(0.5); opacity: 0; }
+  20% { opacity: 0.85; }
+  80% { opacity: 0.5; }
+  100% { transform: translate(var(--particle-drift), -250px) scale(0.2); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .evolution-card--monk::before,
+  .evolution-card--monk .evolution-card__halo,
+  .evolution-card--monk .evolution-card__art::after,
+  .evolution-card--monk .evolution-card__art .avatar-renderer,
+  .monk-energy__particle { animation: none; }
+  .evolution-card--monk .evolution-card__art .avatar-renderer { transform: scale(0.94); }
+  .monk-energy__infinity,
+  .evolution-card--monk .evolution-card__halo { transition: none; }
 }
 
 .evolution-card__content {
